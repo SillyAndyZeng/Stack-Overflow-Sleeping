@@ -54,8 +54,11 @@ public:
     }
 };
 void PrintTimeScore(int n){
-    if(n>=16)cout<<"你这样的睡眠让开发程序的我们羡慕得很！";
-    else if(n>=10&&n<=15)
+    if(n>=16)cout<<"你这样的睡眠不可特意去求！";
+    else if(n>=10&&n<=15)cout<<"不错的睡眠,算挺健康的大学生了qaq";
+    else if(n>=4&&n<=9)cout<<"xs你是赶早八的大学生吗";
+    else if(n>=-6&&n<=3)cout<<"攻城狮劝你别炼丹了";
+    else cout<<"不是哥们,啥也别干了赶紧睡觉吧";
 }
 class WeeklyTracker {
 private:
@@ -78,13 +81,12 @@ public:
         cout << "本周熬夜天数: " << totalStayUp << " 天" << endl;
         cout << "日均睡眠时长: " << (weeklyAvg / weekData.size()) / 60 << " 小时" << endl;
         cout<<"本周的睡眠分: "<<timescore<<endl;
-
+        PrintTimeScore(timescore);
     }
 };
 int main(){
     int sleephour,sleepmin,wakehour,wakemin,daysleep,exertime,sittime;
     WeeklyTracker myWeek;
-    // 为了演示，我们只输入两天数据
     for(int i = 0; i < 7; i++) {
         while (true) { 
             char confirm;
@@ -110,6 +112,4 @@ int main(){
         }
     }
     myWeek.showWeeklySummary();
-
-    
 }
