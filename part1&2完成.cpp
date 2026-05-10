@@ -44,7 +44,7 @@ public:
         if(getTotalSleep()<360) return -3;
         else if(getTotalSleep()>=360&&getTotalSleep()<420) return -1;
         else if(getTotalSleep()>=420&&getTotalSleep()<480) return 2;
-        else if(getTotalSleep()>=480&&getTotalSleep()<540) return 3;
+        else if(getTotalSleep()>=480&&getTotalSleep()<=540) return 3;
         else  return -1;
     }
     void displayReport() {
@@ -58,7 +58,7 @@ void PrintTimeScore(int n){
     else if(n>=10&&n<=15)cout<<"不错的睡眠,算挺健康的大学生了qaq";
     else if(n>=4&&n<=9)cout<<"xs你是赶早八的大学生吗";
     else if(n>=-6&&n<=3)cout<<"攻城狮劝你别炼丹了";
-    else cout<<"不是哥们,啥也别干了赶紧睡觉吧";
+    else cout<<"不是哥们,睡眠时长这一块咱上点心吧";
 }
 class WeeklyTracker {
 private:
@@ -93,7 +93,7 @@ int main(){
             cout << "请输入本周周 " << i+1 << " 数据 (入睡h m, 起床h m, 午睡, 运动, 久坐)(空格分隔,24小时制): " << endl;
             cout << "入睡时间 (时 分): "; cin >> sleephour >> sleepmin;
             cout << "起床时间 (时 分): "; cin >>  wakehour >> wakemin;
-            cout << "午睡, 运动, 久坐时长 (min): "; cin >> daysleep >> exertime >> sittime;;
+            cout << "午睡, 运动, 久坐时长 (min): "; cin >> daysleep >> exertime >> sittime;
 
             // 回显数据供用户核对
             cout << "\n您输入的数据如下" << endl;
