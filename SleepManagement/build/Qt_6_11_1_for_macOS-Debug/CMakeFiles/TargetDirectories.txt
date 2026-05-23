@@ -1,9 +1,0 @@
-/Users/sunny_cy/Desktop/大一下/大一下课程实记/程序设计实习/作业/大作业/程序包/SleepManagement/build/Qt_6_11_1_for_macOS-Debug/CMakeFiles/SleepManagement.dir
-/Users/sunny_cy/Desktop/大一下/大一下课程实记/程序设计实习/作业/大作业/程序包/SleepManagement/build/Qt_6_11_1_for_macOS-Debug/CMakeFiles/edit_cache.dir
-/Users/sunny_cy/Desktop/大一下/大一下课程实记/程序设计实习/作业/大作业/程序包/SleepManagement/build/Qt_6_11_1_for_macOS-Debug/CMakeFiles/rebuild_cache.dir
-/Users/sunny_cy/Desktop/大一下/大一下课程实记/程序设计实习/作业/大作业/程序包/SleepManagement/build/Qt_6_11_1_for_macOS-Debug/CMakeFiles/list_install_components.dir
-/Users/sunny_cy/Desktop/大一下/大一下课程实记/程序设计实习/作业/大作业/程序包/SleepManagement/build/Qt_6_11_1_for_macOS-Debug/CMakeFiles/install.dir
-/Users/sunny_cy/Desktop/大一下/大一下课程实记/程序设计实习/作业/大作业/程序包/SleepManagement/build/Qt_6_11_1_for_macOS-Debug/CMakeFiles/install/local.dir
-/Users/sunny_cy/Desktop/大一下/大一下课程实记/程序设计实习/作业/大作业/程序包/SleepManagement/build/Qt_6_11_1_for_macOS-Debug/CMakeFiles/install/strip.dir
-/Users/sunny_cy/Desktop/大一下/大一下课程实记/程序设计实习/作业/大作业/程序包/SleepManagement/build/Qt_6_11_1_for_macOS-Debug/CMakeFiles/SleepManagement_autogen_timestamp_deps.dir
-/Users/sunny_cy/Desktop/大一下/大一下课程实记/程序设计实习/作业/大作业/程序包/SleepManagement/build/Qt_6_11_1_for_macOS-Debug/CMakeFiles/SleepManagement_autogen.dir
