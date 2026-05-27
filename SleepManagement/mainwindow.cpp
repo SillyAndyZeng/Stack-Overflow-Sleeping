@@ -79,6 +79,8 @@ void MainWindow::on_btn_wake_clicked()
     // 7. 从界面左侧的日历控件（calendarWidget）中，捕获用户当前鼠标选中的那个日期
     QDate selectedDate = ui->calendarWidget->selectedDate();
     // 8. 将获取到的日期对象转换成符合中国人阅读习惯的“XXXX年XX月XX日”字符串格式
+    // 具体实现比较复杂，toString会启动一个类似状态机或字符串替换器的机制
+    // 执行流程：扫描字符串并识别暗号（yyyy，MM，dd），保留普通字符并替换暗号，最后输出
     QString dateStr = selectedDate.toString("yyyy年MM月dd日");
 
     // 9. 使用 QString 强大的字符串格式化功能（.arg()），动态把日期、分数、称号拼装成一封完整的报告文本
