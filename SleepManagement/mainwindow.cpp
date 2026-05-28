@@ -45,6 +45,8 @@ MainWindow::MainWindow(QWidget *parent)
     // 默认隐藏历史修改按钮（只有点选过去的日子才展示）
     ui->btn_edit_sleep->setVisible(false);
     ui->btn_edit_wake->setVisible(false);
+    // 默认隐藏手动保存按钮
+    ui->btn_save_report->setVisible(false);
 }
 MainWindow::~MainWindow()
 {
@@ -183,12 +185,14 @@ void MainWindow::onCalendarDateSelected()
         // 手动修改按钮显现出来
         ui->btn_edit_sleep->setVisible(true);
         ui->btn_edit_wake->setVisible(true);
+        ui->btn_save_report->setVisible(true); // 显示手动保存按钮
     } else {
         // 如果日期是今天，则恢复打卡按钮，手动修改按钮其实也不用隐藏
         ui->btn_sleep->setEnabled(true);
         ui->btn_wake->setEnabled(true);
         // ui->btn_edit_sleep->setVisible(false);
         // ui->btn_edit_wake->setVisible(false);
+        ui->btn_save_report->setVisible(false); // 隐藏手动保存按钮
     }
 
     // 尝试寻找本地文件
@@ -499,7 +503,45 @@ void MainWindow::save_and_report(QDate recordDay, int s_hour, int s_min, int w_h
 
     // 10. 弹出一个最终的日结报告窗口，将拼装好的内容展示给用户看
     QMessageBox::information(this, "早安，打工人", finalReport);
+}
 
+// 非今日，该按钮才会出现；点击“保存并生成简报”触发该按钮
+void MainWindow::on_btn_save_report_clicked()
+{
+    // 1. 获取当前日历上选中的那一天作为归属作息日
+    QDate recordDay = ui->calendarWidget->selectedDate();
+
+    // 2. 准备底层需要的变量，默认全为 -1（应对通宵情况）
+    int s_hour = -1, s_min = -1, w_hour = -1, w_min = -1;
+
+    QString s_text = ui->lineEdit_sleep_disp->text();
+    QString w_text = ui->lineEdit_wake_disp->text();
+
+    // 增加容错拦截：如果没写完整时间，不让生成报告
+    if ((s_text == "未记录" || s_text.isEmpty()) || (w_text == "未记录" || w_text.isEmpty())) {
+        QMessageBox::warning(this, "提示", "数据未填写完整，无法生成报告！\n请先点击上方的修改按钮补齐入睡和起床时间。");
+        return;
+    }
+
+    // 3. 将界面上的纯文本解析回时、分数字
+    if (s_text != "通宵") {
+        QTime s_t = QTime::fromString(s_text, "HH:mm");
+        s_hour = s_t.hour();
+        s_min = s_t.minute();
+    }
+    if (w_text != "通宵") {
+        QTime w_t = QTime::fromString(w_text, "HH:mm");
+        w_hour = w_t.hour();
+        w_min = w_t.minute();
+    }
+
+    // 4. 读取白天的微调框数据
+    int nap = ui->spinBox_nap->value();
+    int exe = ui->spinBox_exercise->value();
+    int sit = ui->spinBox_sit->value();
+
+    // 5. 呼叫我们之前封装好的辅助函数，带走所有保存、刷新、弹窗逻辑
+    save_and_report(recordDay, s_hour, s_min, w_hour, w_min, nap, exe, sit);
 }
 
 void MainWindow::on_btn_week_report_clicked()
