@@ -4,6 +4,9 @@
 #include<iostream>
 #include<stdlib.h>
 #include<vector>
+#include <sstream>
+#include <fstream>
+#include <iomanip>
 
 
 //发现有一些有意义的变量，我们可以在顶部定义并控制
@@ -154,5 +157,71 @@ public:
         cout << "日均睡眠时长: " << (weeklySum / weekData.size()) / 60 << " 小时" << endl;
         cout<<"本周的睡眠分: "<<timescore<<endl;
         PrintComment(timescore);
+    }
+};
+class SleepJsonExporter {
+public:
+    /**
+     * @brief 将单日 SleepAnalyzer 数据序列化为 JSON 字符串
+     * @param sa        当天的 SleepAnalyzer 对象（已填入数据）
+     * @param dateStr   日期字符串，格式建议 "YYYY-MM-DD"，由前端传入
+     * @return          标准 JSON 字符串
+     */
+    static std::string toJsonString(const SleepAnalyzer& sa, const std::string& dateStr) {
+        // SleepAnalyzer 继承自 SleepData，成员是 protected，
+        // 通过 friend 或 getter 访问；这里我们用计算接口绕过
+        SleepAnalyzer copy = sa; // 拷贝一份用于调用非const方法
+
+        int nightSleep  = copy.calculateNightSleep();   // 夜间睡眠（分钟）
+        int totalSleep  = copy.getTotalSleep();          // 总睡眠（分钟）
+        bool stayUp     = copy.isStayUpLate();           // 是否熬夜
+        int sleepScore  = copy.getEnoughSleepScore();    // 睡眠评分
+
+        std::ostringstream oss;
+        oss << "{\n"
+            << "  \"date\": \""         << escapeJson(dateStr) << "\",\n"
+            << "  \"sleep_hour\": "     << sa.Sleep_hour       << ",\n"
+            << "  \"sleep_min\": "      << sa.Sleep_min        << ",\n"
+            << "  \"wake_hour\": "      << sa.Wake_hour        << ",\n"
+            << "  \"wake_min\": "       << sa.Wake_min         << ",\n"
+            << "  \"day_sleep_min\": "  << sa.Day_sleep        << ",\n"
+            << "  \"exercise_min\": "   << sa.Exercise_time    << ",\n"
+            << "  \"sit_min\": "        << sa.Sit_time         << ",\n"
+            << "  \"night_sleep_min\": "<< nightSleep          << ",\n"
+            << "  \"total_sleep_min\": "<< totalSleep          << ",\n"
+            << "  \"stay_up_late\": "   << (stayUp ? "true" : "false") << ",\n"
+            << "  \"sleep_score\": "    << sleepScore          << "\n"
+            << "}";
+        return oss.str();
+    }
+
+    /**
+     * @brief 将 JSON 字符串写入文件（可选，便于本地存档）
+     * @param jsonStr   由 toJsonString() 生成的字符串
+     * @param filePath  目标文件路径，如 "2025-01-01.json"
+     * @return          写入成功返回 true
+     */
+    static bool saveToFile(const std::string& jsonStr, const std::string& filePath) {
+        std::ofstream ofs(filePath);
+        if (!ofs.is_open()) return false;
+        ofs << jsonStr;
+        return true;
+    }
+
+private:
+    // 对字符串中的特殊字符做基础转义，防止 JSON 格式破坏
+    static std::string escapeJson(const std::string& s) {
+        std::ostringstream oss;
+        for (char c : s) {
+            switch (c) {
+                case '"':  oss << "\\\""; break;
+                case '\\': oss << "\\\\"; break;
+                case '\n': oss << "\\n";  break;
+                case '\r': oss << "\\r";  break;
+                case '\t': oss << "\\t";  break;
+                default:   oss << c;
+            }
+        }
+        return oss.str();
     }
 };
