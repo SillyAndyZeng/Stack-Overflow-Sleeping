@@ -130,7 +130,7 @@ void MainWindow::on_btn_ai_report_clicked()
             QString jsonContent = file.readAll();
             allJsonData += QString("【日期 %1】:\n%2\n").arg(d.toString("yyyy-MM-dd")).arg(jsonContent);
 
-            // 无论走哪条路，先顺手把本地 JSON 拆解，喂给你们的本地算分引擎
+            // 无论走哪条路，先把本地 JSON 拆解，喂给本地的Weektracker类
             QJsonDocument doc = QJsonDocument::fromJson(jsonContent.toUtf8());
             QJsonObject obj = doc.object();
 
@@ -143,6 +143,7 @@ void MainWindow::on_btn_ai_report_clicked()
             int exe = obj["exercise_min"].toInt();
             int sit = obj["sit_min"].toInt();
 
+            //构建SleepAnalyzer对象并传入Weektracker类对象localTracker
             SleepAnalyzer sa(s_h, s_m, w_h, w_m, nap, exe, sit);
             localTracker.addDay(sa);
 
@@ -172,30 +173,54 @@ void MainWindow::on_btn_ai_report_clicked()
         // 【路线 B：有 API Key，走大模型网络请求】
         ui->textBrowser_ai->setText("检测到 API Key，正在请大长老出关批阅一周玉简，请稍候...");
 
+        // 按照使用的大模型 API 的要求，组装 JSON 数据包
         QJsonObject requestBody;
         requestBody["model"] = "deepseek-chat";
+        // 温度，可以控制大模型回复的质量
         requestBody["temperature"] = 0.2;
 
+        // 下面的代码是在组装 "聊天记录" (messages)。大模型需要知道聊天的上下文。
+        // QJsonArray 相当于 JSON 里的中括号 []，用来存多条消息。
         QJsonArray messagesArray;
-        QJsonObject systemMessage;
+        // 组装第一条消息：系统指令 (System Prompt)
+        QJsonObject systemMessage; // 创建一个 JSON 对象（小盒子），用来装系统指令
+        // "role" 代表说话人的身份。"system" 告诉大模型这是最高级别的后台规则
         systemMessage["role"] = "system";
         // 注意：这里的提示词改成了“近七天”
         systemMessage["content"] = "你是一位高冷毒舌的‘修仙宗门掌律大长老’。你需要审视弟子递交上来的近七天作息 JSON 数据。用严厉、阴阳怪气、充满修仙色彩的口吻，给出一份排版完美的 Markdown 格式周报。必须包含：### 📜 掌律周评、### 💀 陨落风险评估、### 💊 下周渡劫仙方。";
+        // 把这条系统指令塞进我们的“聊天记录”数组里
         messagesArray.append(systemMessage);
 
-        QJsonObject userMessage;
+        // 组装第二条消息：用户的真实数据 (User Message)
+        QJsonObject userMessage; // 再次创建一个 JSON 对象
+        // "role" 设为 "user"，告诉大模型：这是真实用户发给你的内容，请根据上面的系统规则来处理它。
         userMessage["role"] = "user";
+        // 把我们之前从本地 .json 文件里捞出来的全部长篇字符串塞进去
         userMessage["content"] = allJsonData;
+        // 同样，把这条用户消息也塞进“聊天记录”数组里。
+        // 现在，数组里有两条记录了：[ {系统规则}, {用户数据} ]
         messagesArray.append(userMessage);
 
+        // 最后，把整个聊天记录数组，贴上 "messages" 的标签，放进最外层的大纸箱里。
+        // 这样整个 JSON 包就严格符合了大模型 API 的官方标准
         requestBody["messages"] = messagesArray;
 
+
+        // 下面这块是网络通信部分，相当于去邮局寄这个箱子
+
+        // 填好信封（设置 URL 和 请求头）
         QUrl url("https://api.deepseek.com/chat/completions");
         QNetworkRequest request(url);
+        // 在快递单上备注 Content-Type：告诉服务器“我发过去的数据格式是 JSON，请用 JSON 解析它”
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+        // 在快递单上备注 Authorization：这是你的通行证。
+        // QString("Bearer %1").arg(apiKey) 会把你的 Key 拼成 "Bearer sk-xxxx" 的标准格式。
+        // .toUtf8() 是因为网络传输底层只认字节流（Byte Array），所以要把字符串转成 UTF-8 的字节流。
         request.setRawHeader("Authorization", QString("Bearer %1").arg(apiKey).toUtf8());
 
         // 邮递员出发！收到回复后依然会走之前的 on_api_reply_finished 槽函数
+        // QJsonDocument(requestBody).toJson() 的作用是：
+        // 拔掉套娃，把我们在内存里用 QJsonObject 拼好的结构，压扁成一长串真实的纯文本 JSON 字符串，然后发送
         networkManager->post(request, QJsonDocument(requestBody).toJson());
     }
     /*
