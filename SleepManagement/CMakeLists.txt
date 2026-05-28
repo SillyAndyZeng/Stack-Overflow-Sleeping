@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.19)
 project(SleepManagement LANGUAGES CXX)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets)
+# 在工程配置里把 Network 模块加进来
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Network)
 
 qt_standard_project_setup()
 
@@ -18,6 +19,7 @@ target_link_libraries(SleepManagement
     PRIVATE
         Qt::Core
         Qt::Widgets
+        Qt::Network # 加入网络模块
 )
 
 install(TARGETS SleepManagement
