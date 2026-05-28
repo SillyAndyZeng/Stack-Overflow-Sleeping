@@ -100,6 +100,29 @@
      <string>🌅 我醒了</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="btn_ai_report">
+    <property name="geometry">
+     <rect>
+      <x>290</x>
+      <y>280</y>
+      <width>121</width>
+      <height>24</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>生成AI分析报告</string>
+    </property>
+   </widget>
+   <widget class="QTextBrowser" name="textBrowser_ai">
+    <property name="geometry">
+     <rect>
+      <x>430</x>
+      <y>260</y>
+      <width>256</width>
+      <height>192</height>
+     </rect>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
@@ -107,7 +130,7 @@
      <x>0</x>
      <y>0</y>
      <width>800</width>
-     <height>33</height>
+     <height>22</height>
     </rect>
    </property>
   </widget>
