@@ -48,6 +48,10 @@ private:
     Ui::MainWindow *ui;
     // 新增：这是一个专门负责发 HTTP 请求的“邮递员”
     QNetworkAccessManager *networkManager;
+    // 👇 就是这里！新增这三行，告诉编译器我们有这三个私有辅助函数
+    QString dataDir();
+    void refreshCalendarColors();
+    void checkAndShowAchievements();
 };
 
 #endif // MAINWINDOW_H // 结束宏保护
