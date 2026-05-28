@@ -36,6 +36,7 @@ protected:
     bool noNightSleep = false;
 public:
     friend class WeeklyTracker;
+    friend class SleepJsonExporter;
     SleepData(int d1,int d2,int d3,int d4, int d5,int d6,int d7){
         Sleep_hour=d1;
         Sleep_min=d2;
@@ -162,7 +163,7 @@ public:
 class SleepJsonExporter {
 public:
     /**
-     * @brief 将单日 SleepAnalyzer 数据序列化为 JSON 字符串
+     * @brief 接收一个装好了当天数据的 SleepAnalyzer 对象，以及一个你从前端传进来的日期字符串（比如 "2025-01-15"），返回标准的 JSON 字符串
      * @param sa        当天的 SleepAnalyzer 对象（已填入数据）
      * @param dateStr   日期字符串，格式建议 "YYYY-MM-DD"，由前端传入
      * @return          标准 JSON 字符串
@@ -177,7 +178,7 @@ public:
         bool stayUp     = copy.isStayUpLate();           // 是否熬夜
         int sleepScore  = copy.getEnoughSleepScore();    // 睡眠评分
 
-        std::ostringstream oss;
+        std::ostringstream oss;//ostringstream 把所有数据拼成 JSON 格式的字符串
         oss << "{\n"
             << "  \"date\": \""         << escapeJson(dateStr) << "\",\n"
             << "  \"sleep_hour\": "     << sa.Sleep_hour       << ",\n"
