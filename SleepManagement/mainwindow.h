@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H // 宏保护（Header Guard）：防止这个头文件在编译时被重复包含，避免引发重复定义的编译错误
 #define MAINWINDOW_H
-
+#include <QStandardPaths>
+#include <QDir>
 #include <QMainWindow>
 // 新增：引入网络和JSON相关的头文件
 #include <QNetworkAccessManager>
@@ -39,6 +40,7 @@ private slots:
     void on_btn_ai_report_clicked();
     // 新增：大模型回信后，负责接收回复的函数
     void on_api_reply_finished(QNetworkReply *reply);
+    void onCalendarDateSelected();//日历点击，数据恢复
 
 private:
     // 核心指针：指向由 .ui 文件编译生成的界面类对象。

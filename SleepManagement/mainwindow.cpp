@@ -25,7 +25,8 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow) // 动态分配内存，实例化负责管理 UI 控件的界面类
 {
     ui->setupUi(this); // 超级核心！这个函数把在图形化界面里拖拽的所有按钮、日历、输入框等，真正地绘制、布置到当前的这个MainWindow窗口上
-
+    connect(ui->calendarWidget, &QCalendarWidget::selectionChanged,
+        this, &MainWindow::onCalendarDateSelected);//构造函数绑定日历信号
     // 初始化网络管理器
     networkManager = new QNetworkAccessManager(this);
 
@@ -36,6 +37,12 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     delete ui; //析构函数的具体实现：回收在构造函数中 new 出来的 ui 指针占用的内存，防止内存泄漏
+}
+QString MainWindow::dataDir()//将文件存到固定的应用数据目录
+{
+    QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(dir);   // 目录不存在时自动创建
+    return dir;
 }
 
 // ==========================================
@@ -105,8 +112,9 @@ void MainWindow::on_btn_wake_clicked()
 
     //生成JSON字符串
     std::string dateStdStr = selectedDate.toString("yyyy-MM-dd").toStdString();std::string jsonPayload = SleepJsonExporter::toJsonString(todayData, dateStdStr);
-    //存本地
-    SleepJsonExporter::saveToFile(jsonPayload, dateStdStr + ".json");
+    //存本地，修正了存储路径
+    std::string fullPath = (dataDir() + "/" + QString::fromStdString(dateStdStr) + ".json").toStdString();
+    SleepJsonExporter::saveToFile(jsonPayload, fullPath);
 
     // 9. 使用 QString 强大的字符串格式化功能（.arg()），动态把日期、分数、称号拼装成一封完整的报告文本
     // 函数中的 %1 会被 dateStr 替换，以此类推
@@ -139,7 +147,8 @@ void MainWindow::on_btn_ai_report_clicked()
     // 1. 尝试读取近 7 天的文件（包含选中的当天，共向前推7天）
     for (int i = 0; i < 7; ++i) {
         QDate d = targetDate.addDays(-i);
-        QString fileName = d.toString("yyyy-MM-dd") + ".json";
+        QString fileName = dataDir() + "/" + d.toString("yyyy-MM-dd") + ".json";
+        QFile file(fileName);//这两行进行了修改，改了读取路径，和上面一致
         QFile file(fileName);
 
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -296,4 +305,27 @@ void MainWindow::on_api_reply_finished(QNetworkReply *reply)
 
     // 释放内存
     reply->deleteLater();
+}
+
+void MainWindow::onCalendarDateSelected()
+{
+    QDate date = ui->calendarWidget->selectedDate();
+    QString filePath = dataDir() + "/" + date.toString("yyyy-MM-dd") + ".json";
+    QFile file(filePath);
+
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return;   // 该天没有打卡记录，不做任何操作
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+
+    if (!doc.isObject()) return;
+    QJsonObject obj = doc.object();
+
+    // 把存储的数据回填到界面控件
+    ui->timeEdit_sleep->setTime(QTime(obj["sleep_hour"].toInt(), obj["sleep_min"].toInt()));
+    ui->timeEdit_wake->setTime(QTime(obj["wake_hour"].toInt(),   obj["wake_min"].toInt()));
+    ui->spinBox_nap->setValue(obj["day_sleep_min"].toInt());
+    ui->spinBox_exercise->setValue(obj["exercise_min"].toInt());
+    ui->spinBox_sit->setValue(obj["sit_min"].toInt());
 }
