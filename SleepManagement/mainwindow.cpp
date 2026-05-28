@@ -171,8 +171,44 @@ void MainWindow::on_btn_wake_clicked()
     int w_min  = ui->timeEdit_wake->time().minute();
 
     int nap = ui->spinBox_nap->value();           // 从界面上的午睡微调框中获取用户输入的午睡分钟数 
-    int exe = ui->spinBox_exercise->value();      // 从界面上的运动微调框中获取用户输入的运动分钟数 
-    int sit = ui->spinBox_sit->value();           // 从界面上的久坐微调框中获取用户输入的久坐分钟数 
+    int exe = ui->spinBox_exercise->value();      // 从界面上的运动微调框中获取用户输入的运动分钟数
+    int sit = ui->spinBox_sit->value();           // 从界面上的久坐微调框中获取用户输入的久坐分钟数
+
+    // ==========================================
+    // 新增：防呆与容错机制
+    // 组装带前导零的时间字符串（比如把 8:5 变成 08:05），看起来更专业
+    QString s_time_str = QString("%1:%2").arg(s_hour, 2, 10, QChar('0')).arg(s_min, 2, 10, QChar('0'));
+    QString w_time_str = QString("%1:%2").arg(w_hour, 2, 10, QChar('0')).arg(w_min, 2, 10, QChar('0'));
+
+    // 弹出一个带自定义按钮的确认对话框
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle("作息结算确认");
+    msgBox.setText(QString("系统读取到您的作息如下：\n\n🛌 入睡：%1\n🌅 起床：%2\n\n请确认时间是否准确？\n（若昨晚忘记点【准备入睡】，上方入睡时间可能不准）")
+                       .arg(s_time_str, w_time_str));
+    msgBox.setIcon(QMessageBox::Question);
+
+    // 添加三个自定义按钮，供用户选择，后两个需要记录值
+    msgBox.addButton("✅ 准确，直接结算", QMessageBox::AcceptRole);
+    QPushButton *btnAllNight = msgBox.addButton("🔥 我通宵了，一分钟没睡", QMessageBox::ActionRole);
+    QPushButton *btnCancel = msgBox.addButton("❌ 不准，我去改改", QMessageBox::RejectRole);
+
+    msgBox.exec(); // 阻塞程序，等待用户在弹窗上做出点击选择
+
+    if (msgBox.clickedButton() == btnCancel) {
+        // 用户发现时间不对，点击了取消
+        return; // 直接 return 强行终止这个函数，不往下算分了，让用户回主界面慢慢调时间
+    }
+    // 如果点了通宵按钮
+    else if (msgBox.clickedButton() == btnAllNight) {
+        // 用户通宵了，强行把时间全部设为 -1
+        // 这会完美触发你们 sleep_core.h 里构造函数的彩蛋：noNightSleep = true
+        s_hour = -1;
+        s_min = -1;
+        w_hour = -1;
+        w_min = -1;
+    }
+    // 如果点了“✅ 准确”，if 语句不会拦截，程序顺着往下走，继续第 4 步的算分
+    // ==========================================
 
     // 4. 纽转到纯 C++ 算法领域：实例化你队友写的 SleepAnalyzer 对象，并将刚刚从界面上搜集来的 7 个变量传给它
     SleepAnalyzer todayData(s_hour, s_min, w_hour, w_min, nap, exe, sit);
@@ -227,9 +263,13 @@ void MainWindow::on_btn_ai_report_clicked()
 {
     // 1. 获取并校验用户输入的 API Key
     QString apiKey = ui->lineEdit_apiKey->text().trimmed();
+
+    QMessageBox::warning(this, "天机不可泄露", "如果你有，请先在输入框中填写您的 DeepSeek API Key；如果填写了，会调用API生成周报；如果没有填写，公堂自己给你周报");
+
     if (apiKey.isEmpty()) {
-        QMessageBox::warning(this, "天机不可泄露", "如果你有，请先在输入框中填写您的 DeepSeek API Key；如果填写了，会调用API生成周报；如果没有填写，老夫自己给你周报");
-        return;
+        ui->textBrowser_ai->setText("未检测到 API Key，将本地生成周报...");
+    } else {
+        ui->textBrowser_ai->setText("检测到 API Key，将请掌律大长老出关...");
     }
 
     // 从界面的日历控件中，抓取用户当前选中的那天，赋值给 targetDate

@@ -15,10 +15,10 @@
 #define oversleep_rewardScore 1
 #define daysleep_rewardScore 1
 #define daysleep_judgethreshold 15
-int stayupBegin = 23;
+int stayupBegin = 24;
 int stayupEnd = 8;
-int generalSleep_hour; // 一般入睡时间
-int generalWake_hour;
+int generalSleep_hour = 23; // 一般入睡时间，初始化23
+int generalWake_hour = 8;
 using namespace std;
 
 class SleepData{
@@ -83,7 +83,7 @@ public:
 
     bool isStayUpLate() { //判断是否熬夜，如果在设定的0点和6点间入睡就算作熬夜
         //这个是否熬夜和是否补觉的判断标准，初始让用户自己输入，后面可以根据记录的数据取平均作为建议
-        if (Sleep_hour >= stayupBegin && Sleep_hour < stayupEnd){
+        if (Sleep_hour >= stayupBegin || Sleep_hour < stayupEnd){
             stayUp = true;
             return true;
         }
