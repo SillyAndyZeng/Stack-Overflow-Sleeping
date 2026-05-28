@@ -123,6 +123,16 @@
      </rect>
     </property>
    </widget>
+   <widget class="QLineEdit" name="lineEdit_apiKey">
+    <property name="geometry">
+     <rect>
+      <x>280</x>
+      <y>230</y>
+      <width>171</width>
+      <height>20</height>
+     </rect>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

@@ -7,6 +7,7 @@
 #include <QTimeEdit>            // 引入时间编辑器控件的类声明
 #include <QSpinBox>         // 引入数字微调框控件的类声明
 #include <QCalendarWidget>  // 引入日历控件的类声明
+#include <QFile>
 /*
 当界面上的按钮被点击时，具体要做什么计算、弹出什么提示，全部写在这里。
 什么是 ui->？
@@ -102,8 +103,127 @@ void MainWindow::on_btn_wake_clicked()
 
 void MainWindow::on_btn_ai_report_clicked()
 {
-    ui->textBrowser_ai->setText("正在呼叫大模型，请稍候...");
+    // 1. 获取并校验用户输入的 API Key
+    QString apiKey = ui->lineEdit_apiKey->text().trimmed();
+    if (apiKey.isEmpty()) {
+        QMessageBox::warning(this, "天机不可泄露", "如果你有，请先在输入框中填写您的 DeepSeek API Key；如果填写了，会调用API生成周报；如果没有填写，老夫自己给你周报");
+        return;
+    }
 
+    // 从界面的日历控件中，抓取用户当前选中的那天，赋值给 targetDate
+    QDate targetDate = ui->calendarWidget->selectedDate();
+    ui->textBrowser_ai->setText("正在翻阅本门过去七天的功德簿，等着...");
+
+    QString allJsonData = "以下是本弟子最近七天的真实作息 JSON 数据：\n";
+    int foundFiles = 0;
+
+    // 实例化你们本地的核心算法跟踪器
+    WeeklyTracker localTracker;
+
+    // 1. 尝试读取近 7 天的文件（包含选中的当天，共向前推7天）
+    for (int i = 0; i < 7; ++i) {
+        QDate d = targetDate.addDays(-i);
+        QString fileName = d.toString("yyyy-MM-dd") + ".json";
+        QFile file(fileName);
+
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QString jsonContent = file.readAll();
+            allJsonData += QString("【日期 %1】:\n%2\n").arg(d.toString("yyyy-MM-dd")).arg(jsonContent);
+
+            // 无论走哪条路，先把本地 JSON 拆解，喂给本地的Weektracker类
+            QJsonDocument doc = QJsonDocument::fromJson(jsonContent.toUtf8());
+            QJsonObject obj = doc.object();
+
+            // 根据你截图中序列化的键名，精准提取数据
+            int s_h = obj["sleep_hour"].toInt();
+            int s_m = obj["sleep_min"].toInt();
+            int w_h = obj["wake_hour"].toInt();
+            int w_m = obj["wake_min"].toInt();
+            int nap = obj["day_sleep_min"].toInt();
+            int exe = obj["exercise_min"].toInt();
+            int sit = obj["sit_min"].toInt();
+
+            //构建SleepAnalyzer对象并传入Weektracker类对象localTracker
+            SleepAnalyzer sa(s_h, s_m, w_h, w_m, nap, exe, sit);
+            localTracker.addDay(sa);
+
+            file.close();
+            foundFiles++;
+        }
+    }
+
+    // 2. 如果七天连一天的数据都没找到
+    if (foundFiles == 0) {
+        ui->textBrowser_ai->setText("未能在本地寻得近七天的作息 .json 存档，请先打卡！");
+        return;
+    }
+
+    // ==========================================
+    // 3. 路线分发：本地分析 vs AI 分析
+    // ==========================================
+    if (apiKey.isEmpty()) {
+        // 【路线 A：无 API Key，调用本地 C++ 算法】
+        ui->textBrowser_ai->setText("未检测到 API Key，正在调用本地核心引擎分析...\n\n");
+
+        // 直接获取刚刚解析并塞进 tracker 的周报，追加显示在界面上
+        QString localResult = localTracker.generateLocalReport();
+        ui->textBrowser_ai->append(localResult);
+
+    } else {
+        // 【路线 B：有 API Key，走大模型网络请求】
+        ui->textBrowser_ai->setText("检测到 API Key，正在请大长老出关批阅一周玉简，请稍候...");
+
+        // 按照使用的大模型 API 的要求，组装 JSON 数据包
+        QJsonObject requestBody;
+        requestBody["model"] = "deepseek-chat";
+        // 温度，可以控制大模型回复的质量
+        requestBody["temperature"] = 0.2;
+
+        // 下面的代码是在组装 "聊天记录" (messages)。大模型需要知道聊天的上下文。
+        // QJsonArray 相当于 JSON 里的中括号 []，用来存多条消息。
+        QJsonArray messagesArray;
+        // 组装第一条消息：系统指令 (System Prompt)
+        QJsonObject systemMessage; // 创建一个 JSON 对象（小盒子），用来装系统指令
+        // "role" 代表说话人的身份。"system" 告诉大模型这是最高级别的后台规则
+        systemMessage["role"] = "system";
+        // 注意：这里的提示词改成了“近七天”
+        systemMessage["content"] = "你是一位高冷毒舌的‘修仙宗门掌律大长老’。你需要审视弟子递交上来的近七天作息 JSON 数据。用严厉、阴阳怪气、充满修仙色彩的口吻，给出一份排版完美的 Markdown 格式周报。必须包含：### 📜 掌律周评、### 💀 陨落风险评估、### 💊 下周渡劫仙方。";
+        // 把这条系统指令塞进我们的“聊天记录”数组里
+        messagesArray.append(systemMessage);
+
+        // 组装第二条消息：用户的真实数据 (User Message)
+        QJsonObject userMessage; // 再次创建一个 JSON 对象
+        // "role" 设为 "user"，告诉大模型：这是真实用户发给你的内容，请根据上面的系统规则来处理它。
+        userMessage["role"] = "user";
+        // 把我们之前从本地 .json 文件里捞出来的全部长篇字符串塞进去
+        userMessage["content"] = allJsonData;
+        // 同样，把这条用户消息也塞进“聊天记录”数组里。
+        // 现在，数组里有两条记录了：[ {系统规则}, {用户数据} ]
+        messagesArray.append(userMessage);
+
+        // 最后，把整个聊天记录数组，贴上 "messages" 的标签，放进最外层的大纸箱里。
+        // 这样整个 JSON 包就严格符合了大模型 API 的官方标准
+        requestBody["messages"] = messagesArray;
+
+
+        // 下面这块是网络通信部分，相当于去邮局寄这个箱子
+
+        // 填好信封（设置 URL 和 请求头）
+        QUrl url("https://api.deepseek.com/chat/completions");
+        QNetworkRequest request(url);
+        // 在快递单上备注 Content-Type：告诉服务器“我发过去的数据格式是 JSON，请用 JSON 解析它”
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+        // 在快递单上备注 Authorization：这是你的通行证。
+        // QString("Bearer %1").arg(apiKey) 会把你的 Key 拼成 "Bearer sk-xxxx" 的标准格式。
+        // .toUtf8() 是因为网络传输底层只认字节流（Byte Array），所以要把字符串转成 UTF-8 的字节流。
+        request.setRawHeader("Authorization", QString("Bearer %1").arg(apiKey).toUtf8());
+
+        // 邮递员出发！收到回复后依然会走之前的 on_api_reply_finished 槽函数
+        // QJsonDocument(requestBody).toJson() 的作用是：
+        // 拔掉套娃，把我们在内存里用 QJsonObject 拼好的结构，压扁成一长串真实的纯文本 JSON 字符串，然后发送
+        networkManager->post(request, QJsonDocument(requestBody).toJson());
+    }
+    /*
     // 1. 准备你要发给大模型的话（这里你需要把你队友类里的数据转成字符串，这里先用假数据演示）
     QString sleepData = "我最近三天分别睡了 5小时、6小时、4小时，并且连续两天都在凌晨 2 点后入睡。请给我一份刻薄又搞笑的修仙警告报告。";
 
@@ -131,6 +251,7 @@ void MainWindow::on_btn_ai_report_clicked()
 
     // 4. 让邮递员把信发出去（发送 POST 请求）
     networkManager->post(request, postData);
+    */
 }
 
 void MainWindow::on_api_reply_finished(QNetworkReply *reply)

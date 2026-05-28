@@ -4,6 +4,8 @@
 #include<iostream>
 #include<stdlib.h>
 #include<vector>
+//加入Qt的字符串头文件
+#include <QString>
 #include <sstream>
 #include <fstream>
 #include <iomanip>
@@ -118,7 +120,54 @@ public:
     void addDay(SleepAnalyzer &sa) {
         weekData.push_back(sa);
     }
-    void PrintComment(const int &n){  //n是一周7天所有的getEnoughSleepScore返回值的累加 参数是睡眠分x
+    // 新增：返回 Qt 字符串格式的周评语
+    QString getCommentString(const int &n) {
+        if(n >= 16) return "你这样的睡眠不可特意去求！";
+        else if(n >= 10 && n <= 15) return "不错的睡眠，算挺健康的大学生了qaq";
+        else if(n >= 4 && n <= 9) return "xs你是赶早八的大学生吗";
+        else if(n >= -6 && n <= 3) return "攻城狮劝你别炼丹了";
+        else return "不是哥们，睡眠时长这一块咱上点心吧";
+    }
+    // 新增：生成供 Qt 界面显示的本地周报
+    QString generateLocalReport() {
+        int localTotalStayUp = 0;
+        int localTotalOverSleep = 0;
+        int localTotalCatchup = 0;
+        int localTimeScore = 0;
+        double localWeeklySum = 0;
+
+        for (auto &day : weekData) {
+            localWeeklySum += day.getTotalSleep();
+
+            if (day.isStayUpLate()) {
+                localTotalStayUp++;
+                if (day.Day_sleep > daysleep_judgethreshold) {
+                    localTimeScore += daysleep_rewardScore;
+                }
+            }
+            if (day.oversleep) {
+                localTotalOverSleep++;
+                if (localTotalOverSleep <= localTotalStayUp + 2) {
+                    day.catchupOnSleep = true;
+                    localTotalCatchup++;
+                    localTimeScore += oversleep_rewardScore;
+                }
+            }
+            localTimeScore += day.getEnoughSleepScore();
+        }
+
+        QString report = "=== 🏠 本地核心算法周报 ===\n\n";
+        report += QString("🛌 本周熬夜天数: %1 天\n").arg(localTotalStayUp);
+        report += QString("💤 本周睡懒觉天数: %1 天 (其中有效补觉 %2 天)\n").arg(localTotalOverSleep).arg(localTotalCatchup);
+
+        int avgSleepMin = weekData.empty() ? 0 : (localWeeklySum / weekData.size());
+        report += QString("📊 日均睡眠时长: %1 小时 %2 分钟\n").arg(avgSleepMin / 60).arg(avgSleepMin % 60);
+        report += QString("💯 本周综合睡眠分: %1\n\n").arg(localTimeScore);
+        report += "💡 算法总评：\n" + getCommentString(localTimeScore);
+
+        return report;
+    }
+    /*void PrintComment(const int &n){  //n是一周7天所有的getEnoughSleepScore返回值的累加 参数是睡眠分x
         //这可以作为一个简短评价，比如作为整个睡眠评价页面的标题？（类似SBTI那样）剩下的部分是模型生成的分析报告
         //不过现在已经可以了x
         //或许加入睡懒觉天数的判断和记录后，可以另开一个if-else分支关注这个点，加一些特定条件下的称号
@@ -127,9 +176,9 @@ public:
         else if(n>=4&&n<=9)cout<<"xs你是赶早八的大学生吗";
         else if(n>=-6&&n<=3)cout<<"攻城狮劝你别炼丹了";
         else cout<<"不是哥们,睡眠时长这一块咱上点心吧";
-    } //另：何不将这个函数作为WeeklyTracer的成员函数x
+    }*/
 
-    void showWeeklySummary() {
+    /*void showWeeklySummary() {
         //现在只评价了睡眠时间，以后要加入锻炼、久坐时间的评价？算了喂给大模型评价吧
         for (auto &day : weekData) {
             weeklySum += day.getTotalSleep();
@@ -158,6 +207,8 @@ public:
         cout << "日均睡眠时长: " << (weeklySum / weekData.size()) / 60 << " 小时" << endl;
         cout<<"本周的睡眠分: "<<timescore<<endl;
         PrintComment(timescore);
+    }*/
+};
     }
 };
 class SleepJsonExporter {
