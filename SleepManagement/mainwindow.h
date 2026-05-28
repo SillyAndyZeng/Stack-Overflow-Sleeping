@@ -56,6 +56,8 @@ private:
     QString dataDir();
     void refreshCalendarColors();
     void checkAndShowAchievements();
+    // 专门用于动态计算并刷新晚间睡眠时长显示框的函数
+    void updateDurationDisplay();
     // 核心封装函数，传入作息日和各项具体数据进行保存和弹窗
     // 不传入一个SleppAnalyzer对象的原因是，在哪里实例化呢
     void save_and_report(QDate recordDay, int s_hour, int s_min, int w_hour, int w_min, int nap, int exe, int sit);
