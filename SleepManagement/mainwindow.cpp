@@ -62,6 +62,7 @@ void MainWindow::on_btn_wake_clicked()
     ui->timeEdit_wake->setTime(currentTime);
 
     // 3. 开始通过 ui-> 指针，从界面上的各个控件中捞取用户输入的数据：
+    // 增加容错机制：假如没有点“我睡了”，或者没有手动填写入睡时间，此时timeEdit_sleep框为空（或者保留的是昨天的入睡时间），可能报错。
     int s_hour = ui->timeEdit_sleep->time().hour();
     int s_min  = ui->timeEdit_sleep->time().minute();
     int w_hour = ui->timeEdit_wake->time().hour();
@@ -73,15 +74,24 @@ void MainWindow::on_btn_wake_clicked()
 
     // 4. 纽转到纯 C++ 算法领域：实例化你队友写的 SleepAnalyzer 对象，并将刚刚从界面上搜集来的 7 个变量传给它
     SleepAnalyzer todayData(s_hour, s_min, w_hour, w_min, nap, exe, sit);
-    // 5. 调用算法，计算并返回当天的睡眠健康评分
+    // 5. 调用算法，计算并返回当天的睡眠健康评分（似乎对于周报并无必要）
     int score = todayData.getEnoughSleepScore();
 
-    // 6. 根据算出来的分数，匹配对应的修仙称号
-    QString title = "";
-    if(score >= 16) title = "🏆 睡眠大神，请受我一拜！";
-    else if(score >= 10 && score <= 15) title = "✨ 健康的清澈大学生";
-    else if(score >= 4 && score <= 9) title = "🏃 正在生死时速赶早八";
-    else title = "💀 熬夜修仙者！系统警告，请惜命！";
+    string title = "";
+    // 6. 根据当天睡眠时间具体数值，匹配对应的修仙称号。评判标准同评分的标准
+    int nightsleep = todayData.calculateNightSleep();
+    bool noNightSleep = todayData.noNightSleep;
+    bool overSleep = todayData.oversleep;
+    //总之我觉得后面可以把晚上睡眠和白天睡眠分开考虑，晚上不睡白天昏昏欲睡也不好，但总比不睡好x
+    if (noNightSleep) title = "你见过凌晨六点的未名湖吗";// 熬穿
+    else if(overSleep) title = "小~懒~猫 ❤ 姐姐喊你学高代啦"; //睡懒觉，后面再评价：如果睡眠分小于一定数目，睡懒觉有加分（补觉）；否则不加分
+    else if(nightsleep<360) title = "阿巴阿巴阿巴"; //小于6h
+    else if(nightsleep<420) title = ""; //6-7h
+    else if(nightsleep<480) title = ""; //7-8h
+    else if(nightsleep<=540) title = ""; //8-9h
+    else if(nightsleep<=600) title = ""; //9-10h
+    else title = ""; //大于10h且不算睡懒觉；睡太长也不好
+    
 
     // 7. 从界面左侧的日历控件（calendarWidget）中，捕获用户当前鼠标选中的那个日期
     QDate selectedDate = ui->calendarWidget->selectedDate();
@@ -90,12 +100,18 @@ void MainWindow::on_btn_wake_clicked()
     // 执行流程：扫描字符串并识别暗号（yyyy，MM，dd），保留普通字符并替换暗号，最后输出
     QString dateStr = selectedDate.toString("yyyy年MM月dd日");
 
+    // 获取QString格式的睡眠时长（“x小时x分钟”）
+    QString durationText = todayData.ShowSleepTime(nightsleep);
+
+    //生成JSON字符串
+    std::string dateStdStr = selectedDate.toString("yyyy-MM-dd").toStdString();std::string jsonPayload = SleepJsonExporter::toJsonString(todayData, dateStdStr);
+    //存本地
+    SleepJsonExporter::saveToFile(jsonPayload, dateStdStr + ".json");
+
     // 9. 使用 QString 强大的字符串格式化功能（.arg()），动态把日期、分数、称号拼装成一封完整的报告文本
-    // 函数中的 %1 会被 dateStr 替换，%2 会被 score 替换，%3 会被 title 替换
-    QString finalReport = QString("【%1 清晨日结报告】\n\n数据录入成功！\n系统判定您的睡眠评分为： %2 分\n\n授予称号：\n%3")
-                              .arg(dateStr)
-                              .arg(score)
-                              .arg(title);
+    // 函数中的 %1 会被 dateStr 替换，以此类推
+    QString finalReport = QString("【%1 清晨日结报告】\n\n数据录入成功！\n累计睡眠时长：%2\n判定您的睡眠评分为： %3 分\n\n授予称号：\n%4")
+                              .arg(dateStr, durationText, QString::number(score), title);
 
     // 10. 弹出一个最终的日结报告窗口，将拼装好的内容展示给用户看                              
     QMessageBox::information(this, "早安，打工人", finalReport);
@@ -128,7 +144,7 @@ void MainWindow::on_btn_ai_report_clicked()
 
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QString jsonContent = file.readAll();
-            allJsonData += QString("【日期 %1】:\n%2\n").arg(d.toString("yyyy-MM-dd")).arg(jsonContent);
+            allJsonData += QString("【日期 %1】:\n%2\n").arg(d.toString("yyyy-MM-dd"), jsonContent);
 
             // 无论走哪条路，先把本地 JSON 拆解，喂给本地的Weektracker类
             QJsonDocument doc = QJsonDocument::fromJson(jsonContent.toUtf8());

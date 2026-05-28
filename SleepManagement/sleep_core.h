@@ -32,11 +32,11 @@ protected:
     int Exercise_time; //锻炼时间？
     int Sit_time; //坐的总时间？
     int UsualSleep_hour;
+public:
     bool stayUp = false;
     bool oversleep = false;
     bool catchupOnSleep = false;
     bool noNightSleep = false;
-public:
     friend class WeeklyTracker;
     friend class SleepJsonExporter;
     SleepData(int d1,int d2,int d3,int d4, int d5,int d6,int d7){
@@ -68,6 +68,13 @@ public:
         if (end >= (generalWake_hour + 2) * 60) oversleep = true;
         if (end < start) end += 24 * 60;   //如果睡眠时间（如23:00）晚于起床时间（如8:00），认为二者不在同一天，将8+24 = 32
         return end - start; //作差得到睡眠总分钟数
+    }
+
+    //一个返回值是QString的显示睡眠时长的函数
+    QString ShowSleepTime(const int &t){
+        int h = t / 60;
+        int m = t % 60;
+        return QString("%1小时 %2分钟").arg(h).arg(m);
     }
 
     int getTotalSleep() {
@@ -209,8 +216,8 @@ public:
         PrintComment(timescore);
     }*/
 };
-    }
-};
+
+
 class SleepJsonExporter {
 public:
     /**
