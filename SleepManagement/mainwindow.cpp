@@ -150,6 +150,7 @@ void MainWindow::updateDurationDisplay()
     QTime w_time = QTime::fromString(w_text, "HH:mm");
 
     // 3. 计算时间差
+    // SleepAnalyzer类里有一个类似的函数calculateNightSleep()能实现此功能，但是要实现的话还得实例化一个临时的SleepAnalyzer对象，效率不高
     if (s_time.isValid() && w_time.isValid()) {
         int s_min = s_time.hour() * 60 + s_time.minute();
         int w_min = w_time.hour() * 60 + w_time.minute();
@@ -243,6 +244,31 @@ void MainWindow::on_btn_sleep_clicked()
     QTime currentTime = QTime::currentTime();
     ui->lineEdit_sleep_disp->setText(currentTime.toString("HH:mm"));
 
+    // 偷偷读取“今天早上”残留的起床时间，用来算一卦今天如果和昨天一个时候起，大概能睡多久
+    // 后期这个逻辑可能改成，和用户设置的常规起床时间比，能睡多久
+    QString w_text = ui->lineEdit_wake_disp->text();
+
+    // 准备默认提示语（默认版本是为了防止今早没有起床记录）
+    QString estimateMsg = "系统已进入静默模式，请放下手机，好好休息哦~";
+
+    if (w_text != "未记录" && w_text != "通宵" && !w_text.isEmpty()) {
+        QTime w_time = QTime::fromString(w_text, "HH:mm");
+        if (w_time.isValid()) {
+            // 白嫖SleepAnalyzer的函数：把现在的入睡时间和今早的起床时间喂进去
+            SleepAnalyzer tempAnalyzer(currentTime.hour(), currentTime.minute(), w_time.hour(), w_time.minute(), 0, 0, 0);
+            int diffMinutes = tempAnalyzer.calculateNightSleep();
+
+            int h = diffMinutes / 60;
+            int m = diffMinutes % 60;
+
+            // 拼装一个充满仪式感的预估提示语
+            estimateMsg = QString("参考您今早 %1 的起床习惯：\n如果您明早也在这个时间醒来，您将获得约【%2小时 %3分钟】的睡眠。\n\n放平心态，放下手机，晚安！")
+                              .arg(w_text).arg(h).arg(m);
+        }
+    }
+
+    // 只要点入睡，就把起床记录清空，确保时长一定显示 --:--，就算早上不点起床，连点两次睡眠也没关系
+    ui->lineEdit_wake_disp->setText("未记录");
     updateDurationDisplay(); // 刷新时长
 
     // 3. 弹出一个温馨的提示框。参数含义：（父窗口为当前窗口, 弹窗标题, 弹窗正文文本）
@@ -327,35 +353,6 @@ void MainWindow::on_btn_wake_clicked()
         }
     }
 
-    // 4. 纽转到纯 C++ 算法领域：实例化你队友写的 SleepAnalyzer 对象，并将刚刚从界面上搜集来的 7 个变量传给它
-    SleepAnalyzer todayData(s_hour, s_min, w_hour, w_min, nap, exe, sit);
-    // 5. 调用算法，计算并返回该作息日的睡眠健康评分（似乎对于周报并无必要）
-    int score = todayData.getEnoughSleepScore();
-
-    string title = "";
-    // 6. 根据该作息日睡眠时间计算具体数值，以及是否睡懒觉。匹配对应的修仙称号。评判标准同评分的标准
-    int nightsleep = todayData.calculateNightSleep();
-    bool noNightSleep = todayData.noNightSleep;
-    bool overSleep = todayData.oversleep;
-
-    if (noNightSleep) title = "你见过凌晨五点的学一吗";// 熬穿
-    else if(overSleep) title = "你醒啦，期末已经考完了"; //睡懒觉，后面再评价：如果睡眠分小于一定数目，睡懒觉有加分（补觉）；否则不加分
-    else if(nightsleep<360) title = "这里是第几层梦境？"; //小于6h
-    else if(nightsleep<420) title = "醒了吗？没醒的话，吃我一拳"; //6-7h
-    else if(nightsleep<480) title = "如此理想"; //7-8h
-    else if(nightsleep<=540) title = "获得睡眠硕士学位"; //8-9h
-    else if(nightsleep<=600) title = "Ph.S学位"; //9-10h
-    else title = "小~懒~猫 ❤ 姐姐喊你学高代啦"; //大于10h且不算睡懒觉；睡太长也不好
-    
-    /* 暂时不考虑的做法
-    // 7. 从界面左侧的日历控件（calendarWidget）中，捕获用户当前鼠标选中的那个日期
-    QDate selectedDate = ui->calendarWidget->selectedDate();
-    // 8. 将获取到的日期对象转换成符合中国人阅读习惯的“XXXX年XX月XX日”字符串格式
-    // 具体实现比较复杂，toString会启动一个类似状态机或字符串替换器的机制
-    // 执行流程：扫描字符串并识别暗号（yyyy，MM，dd），保留普通字符并替换暗号，最后输出
-    QString dateStr = selectedDate.toString("yyyy年MM月dd日");
-    */
-
     //根据入睡时间计算作息日，一般来讲是起床时的前一天；
     QDate recordDay = QDate::currentDate().addDays(-1);
     //极特殊情况当晚睡当晚起，回到当天
@@ -368,31 +365,8 @@ void MainWindow::on_btn_wake_clicked()
     if (selectedDate != recordDay.addDays(1))
         recordDay = selectedDate;
 
-    //在通过起床按钮生成日报时，不需要考虑鼠标选的哪个日期。后期想要补上哪天的数据的话，加上手动重设按钮，手动编辑入睡和起床时间框，
-    //考虑加一个生成日报+保存数据的辅助函数。当点击醒来按钮时，会自动调用生成日报；
-    //假如是手动选择了其他日期，手动编辑入睡和起床时间的话，需要一个手动生成日报按钮
-    //如果一天完全没有动程序，那么也不会存下数据文件，当天就没有数据文件，直到手动编辑当日入睡和起床时间并手动生成日报
-    QString dateStr = recordDay.toString("yyyy年MM月dd日");
-
-    // 获取QString格式的睡眠时长（“x小时x分钟”）
-    QString durationText = todayData.ShowSleepTime(nightsleep);
-
-    //生成JSON字符串
-    std::string dateStdStr = recordDay.toString("yyyy-MM-dd").toStdString();std::string jsonPayload = SleepJsonExporter::toJsonString(todayData, dateStdStr);
-    //存本地，修正了存储路径
-    std::string fullPath = (dataDir() + "/" + QString::fromStdString(dateStdStr) + ".json").toStdString();
-    SleepJsonExporter::saveToFile(jsonPayload, fullPath);
-
-    refreshCalendarColors();  // 刚保存的作息日立刻染色
-    checkAndShowAchievements();  // 检查是否达成里程碑
-
-    // 9. 使用 QString 强大的字符串格式化功能（.arg()），动态把日期、分数、称号拼装成一封完整的报告文本
-    // 函数中的 %1 会被 dateStr 替换，以此类推
-    QString finalReport = QString("【%1 清晨日结报告】\n\n数据录入成功！\n累计睡眠时长：%2\n判定您的睡眠评分为： %3 分\n\n授予称号：\n%4")
-                              .arg(dateStr, durationText, QString::number(score), title);
-
-    // 10. 弹出一个最终的日结报告窗口，将拼装好的内容展示给用户看                              
-    QMessageBox::information(this, "早安，打工人", finalReport);
+    // 6. 发射！
+    save_and_report(recordDay, s_hour, s_min, w_hour, w_min, nap, exe, sit);
 }
 
 //手动修改入睡和起床时间的按钮：btn_edit_sleep和btn_edit_wake，调用了QDialog
@@ -466,6 +440,66 @@ void MainWindow::on_btn_edit_wake_clicked()
         ui->lineEdit_wake_disp->setText(timeEdit.time().toString("HH:mm"));
         updateDurationDisplay(); // 联动刷新
     }
+}
+
+// ==========================================
+// 辅助函数：封装了算分、本地持久化、日历染色和弹窗生成的全部流程
+void MainWindow::save_and_report(QDate recordDay, int s_hour, int s_min, int w_hour, int w_min, int nap, int exe, int sit)
+{
+    // 4. 纽转到纯 C++ 算法领域：实例化你队友写的 SleepAnalyzer 对象，并将刚刚从界面上搜集来的 7 个变量传给它
+    SleepAnalyzer todayData(s_hour, s_min, w_hour, w_min, nap, exe, sit);
+    // 5. 调用算法，计算并返回该作息日的睡眠健康评分（似乎对于周报并无必要）
+    int score = todayData.getEnoughSleepScore();
+
+    string title = "";
+    // 6. 根据该作息日睡眠时间计算具体数值，以及是否睡懒觉。匹配对应的修仙称号。评判标准同评分的标准
+    int nightsleep = todayData.calculateNightSleep();
+    bool noNightSleep = todayData.noNightSleep;
+    bool overSleep = todayData.oversleep;
+
+    if (noNightSleep) title = "你见过凌晨五点的学一吗";// 熬穿
+    else if(overSleep) title = "你醒啦，期末已经考完了"; //睡懒觉，后面再评价：如果睡眠分小于一定数目，睡懒觉有加分（补觉）；否则不加分
+    else if(nightsleep<360) title = "这里是第几层梦境？"; //小于6h
+    else if(nightsleep<420) title = "醒了吗？没醒的话，吃我一拳"; //6-7h
+    else if(nightsleep<480) title = "如此理想"; //7-8h
+    else if(nightsleep<=540) title = "获得睡眠硕士学位"; //8-9h
+    else if(nightsleep<=600) title = "Ph.S学位"; //9-10h
+    else title = "小~懒~猫 ❤ 姐姐喊你学高代啦"; //大于10h且不算睡懒觉；睡太长也不好
+
+    /* 暂时不考虑的做法
+    // 7. 从界面左侧的日历控件（calendarWidget）中，捕获用户当前鼠标选中的那个日期
+    QDate selectedDate = ui->calendarWidget->selectedDate();
+    // 8. 将获取到的日期对象转换成符合中国人阅读习惯的“XXXX年XX月XX日”字符串格式
+    // 具体实现比较复杂，toString会启动一个类似状态机或字符串替换器的机制
+    // 执行流程：扫描字符串并识别暗号（yyyy，MM，dd），保留普通字符并替换暗号，最后输出
+    QString dateStr = selectedDate.toString("yyyy年MM月dd日");
+    */
+
+    //在通过起床按钮生成日报时，不需要考虑鼠标选的哪个日期。后期想要补上哪天的数据的话，加上手动重设按钮，手动编辑入睡和起床时间框，
+    //考虑加一个生成日报+保存数据的辅助函数。当点击醒来按钮时，会自动调用生成日报；
+    //假如是手动选择了其他日期，手动编辑入睡和起床时间的话，需要一个手动生成日报按钮
+    //如果一天完全没有动程序，那么也不会存下数据文件，当天就没有数据文件，直到手动编辑当日入睡和起床时间并手动生成日报
+    QString dateStr = recordDay.toString("yyyy年MM月dd日");
+    // 获取QString格式的睡眠时长（“x小时x分钟”）
+    QString durationText = todayData.ShowSleepTime(nightsleep);
+
+    //生成JSON字符串
+    std::string dateStdStr = recordDay.toString("yyyy-MM-dd").toStdString();std::string jsonPayload = SleepJsonExporter::toJsonString(todayData, dateStdStr);
+    //存本地，修正了存储路径
+    std::string fullPath = (dataDir() + "/" + QString::fromStdString(dateStdStr) + ".json").toStdString();
+    SleepJsonExporter::saveToFile(jsonPayload, fullPath);
+
+    refreshCalendarColors();  // 刚保存的作息日立刻染色
+    checkAndShowAchievements();  // 检查是否达成里程碑
+
+    // 9. 使用 QString 强大的字符串格式化功能（.arg()），动态把日期、分数、称号拼装成一封完整的报告文本
+    // 函数中的 %1 会被 dateStr 替换，以此类推
+    QString finalReport = QString("【%1 清晨日结报告】\n\n数据录入成功！\n累计睡眠时长：%2\n判定您的睡眠评分为： %3 分\n\n授予称号：\n%4")
+                              .arg(dateStr, durationText, QString::number(score), title);
+
+    // 10. 弹出一个最终的日结报告窗口，将拼装好的内容展示给用户看
+    QMessageBox::information(this, "早安，打工人", finalReport);
+
 }
 
 void MainWindow::on_btn_week_report_clicked()
