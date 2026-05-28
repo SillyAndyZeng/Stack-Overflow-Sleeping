@@ -180,19 +180,19 @@ void MainWindow::on_btn_wake_clicked()
     int score = todayData.getEnoughSleepScore();
 
     string title = "";
-    // 6. 根据当天睡眠时间具体数值，匹配对应的修仙称号。评判标准同评分的标准
+    // 6. 根据当天睡眠时间计算具体数值，以及是否睡懒觉。匹配对应的修仙称号。评判标准同评分的标准
     int nightsleep = todayData.calculateNightSleep();
     bool noNightSleep = todayData.noNightSleep;
     bool overSleep = todayData.oversleep;
     //总之我觉得后面可以把晚上睡眠和白天睡眠分开考虑，晚上不睡白天昏昏欲睡也不好，但总比不睡好x
-    if (noNightSleep) title = "你见过凌晨六点的未名湖吗";// 熬穿
+    if (noNightSleep) title = "你见过凌晨五点的学一吗";// 熬穿
     else if(overSleep) title = "小~懒~猫 ❤ 姐姐喊你学高代啦"; //睡懒觉，后面再评价：如果睡眠分小于一定数目，睡懒觉有加分（补觉）；否则不加分
-    else if(nightsleep<360) title = "阿巴阿巴阿巴"; //小于6h
-    else if(nightsleep<420) title = ""; //6-7h
-    else if(nightsleep<480) title = ""; //7-8h
-    else if(nightsleep<=540) title = ""; //8-9h
-    else if(nightsleep<=600) title = ""; //9-10h
-    else title = ""; //大于10h且不算睡懒觉；睡太长也不好
+    else if(nightsleep<360) title = "这里是第几层梦境？"; //小于6h
+    else if(nightsleep<420) title = "醒了吗？没醒的话，吃我一拳"; //6-7h
+    else if(nightsleep<480) title = "如此理想"; //7-8h
+    else if(nightsleep<=540) title = "获得睡眠硕士学位"; //8-9h
+    else if(nightsleep<=600) title = "Ph.S学位"; //9-10h
+    else title = "你醒啦，期末已经考完了"; //大于10h且不算睡懒觉；睡太长也不好
     
 
     // 7. 从界面左侧的日历控件（calendarWidget）中，捕获用户当前鼠标选中的那个日期
