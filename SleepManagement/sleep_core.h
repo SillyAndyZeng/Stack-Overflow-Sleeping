@@ -191,6 +191,8 @@ public:
             << "  \"night_sleep_min\": "<< nightSleep          << ",\n"
             << "  \"total_sleep_min\": "<< totalSleep          << ",\n"
             << "  \"stay_up_late\": "   << (stayUp ? "true" : "false") << ",\n"
+            << "  \"oversleep\": "       << (copy.oversleep ? "true" : "false")     << ",\n"
+            << "  \"no_night_sleep\": "  << (copy.noNightSleep ? "true" : "false")  << ",\n"
             << "  \"sleep_score\": "    << sleepScore          << "\n"
             << "}";
         return oss.str();
