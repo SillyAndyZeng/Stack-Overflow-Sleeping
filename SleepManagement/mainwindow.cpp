@@ -5,11 +5,14 @@
 #include <QMessageBox>        // 引入 Qt 官方的弹窗对话框类，用于实现各种警告、信息提示弹窗
 #include <QTime>              // 抓取系统时间
 #include <QDate>              // 处理日历日期
-#include <QTimeEdit>            // 引入时间编辑器控件的类声明
+#include <QTimeEdit>  // 引入时间编辑器控件的类声明
 #include <QSpinBox>         // 引入数字微调框控件的类声明
 #include <QCalendarWidget>  // 引入日历控件的类声明
 #include <QFile>
 #include <QDir>
+#include <QDialog>
+#include <QVBoxLayout>
+#include <QDialogButtonBox>
 /*
 当界面上的按钮被点击时，具体要做什么计算、弹出什么提示，全部写在这里。
 什么是 ui->？
@@ -18,7 +21,7 @@
 什么是 .value() 和 .time()？
  不同控件取值的方式不同：QSpinBox（数字微调框）用 .value() 拿数字 ；QTimeEdit（时间组件）用 .time().hour() 拿小时数 。
 数据的流转闭环：
- 用户在界面（ui->...）上输入数据 -> 你的槽函数通过代码把数据捞出来 -> 喂给队友的纯 C++ 类（SleepAnalyzer）去算分 -> 把算出来的分数包装成弹窗（QMessageBox）反馈渲染给用户。
+ 用户在界面（ui->...）上输入数据 -> 槽函数通过代码把数据捞出来 -> 喂给纯 C++ 类（SleepAnalyzer）去算分 -> 把算出来的分数包装成弹窗（QMessageBox）反馈渲染给用户。
 
 */
 // 构造函数的具体实现：执行窗口的初始化
@@ -26,14 +29,22 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)   // 先调用基类 QMainWindow 的构造函数，完成最基础的通用窗口初始化
     , ui(new Ui::MainWindow) // 动态分配内存，实例化负责管理 UI 控件的界面类
 {
-    ui->setupUi(this); // 超级核心！这个函数把在图形化界面里拖拽的所有按钮、日历、输入框等，真正地绘制、布置到当前的这个MainWindow窗口上
+    ui->setupUi(this); // 核心！这个函数把在图形化界面里拖拽的所有按钮、日历、输入框等，真正地绘制、布置到当前的这个MainWindow窗口上
     connect(ui->calendarWidget, &QCalendarWidget::selectionChanged,
         this, &MainWindow::onCalendarDateSelected);//构造函数绑定日历信号
     // 初始化网络管理器
     networkManager = new QNetworkAccessManager(this);
 
-    // 当邮递员收到回信时，自动把信（reply）交给 on_api_reply_finished 函数去拆解
+    // connect函数：当收到大模型回信时，自动把信（reply）交给 on_api_reply_finished 函数去拆解
     connect(networkManager, &QNetworkAccessManager::finished, this, &MainWindow::on_api_reply_finished);
+
+    // 【初始化时】把显示框设为只读，不允许键盘修改
+    ui->lineEdit_sleep_disp->setReadOnly(true);
+    ui->lineEdit_wake_disp->setReadOnly(true);
+
+    // 默认隐藏历史修改按钮（只有点选过去的日子才展示）
+    ui->btn_edit_sleep->setVisible(false);
+    ui->btn_edit_wake->setVisible(false);
 }
 MainWindow::~MainWindow()
 {
@@ -117,27 +128,110 @@ void MainWindow::checkAndShowAchievements()
                              QString("恭喜解锁新成就：\n\n%1\n\n连续打卡 %2 天 · 连续早睡 %3 天\n\n继续保持！")
                                  .arg(badge).arg(ci).arg(es));
 }
+
+// 🎓【新增辅助函数】动态读取界面上的时间，计算时长并显示
+void MainWindow::updateDurationDisplay()
+{
+    QString s_text = ui->lineEdit_sleep_disp->text();
+    QString w_text = ui->lineEdit_wake_disp->text();
+
+    // 1. 如果还没记录，或者通宵了
+    if (s_text == "未记录" || w_text == "未记录" || s_text.isEmpty() || w_text.isEmpty()) {
+        ui->lineEdit_duration_disp->setText("--:--");
+        return;
+    }
+    if (s_text == "修仙" || w_text == "修仙") {
+        ui->lineEdit_duration_disp->setText("00:00");
+        return;
+    }
+
+    // 2. 将文本转换回 QTime 时间对象
+    QTime s_time = QTime::fromString(s_text, "HH:mm");
+    QTime w_time = QTime::fromString(w_text, "HH:mm");
+
+    // 3. 计算时间差
+    if (s_time.isValid() && w_time.isValid()) {
+        int s_min = s_time.hour() * 60 + s_time.minute();
+        int w_min = w_time.hour() * 60 + w_time.minute();
+
+        // 如果起床时间在数字上小于入睡时间（比如 23:00 睡，08:00 起），说明跨天了
+        if (w_min < s_min) {
+            w_min += 24 * 60;
+        }
+
+        int diff = w_min - s_min;
+        int h = diff / 60;
+        int m = diff % 60;
+
+        // 格式化为 08:30 这样的格式
+        ui->lineEdit_duration_disp->setText(QString("%1:%2").arg(h, 2, 10, QChar('0')).arg(m, 2, 10, QChar('0')));
+    }
+}
+
+//数据回填
 void MainWindow::onCalendarDateSelected()
 {
     QDate date = ui->calendarWidget->selectedDate();
+    QDate today = QDate::currentDate();
+
+    // 【手动编辑】如果选中的不是今天（即手动编辑之前的日子）
+    if (date != today) {
+        // 实时打卡按钮变成不可选中
+        ui->btn_sleep->setEnabled(false);
+        ui->btn_wake->setEnabled(false);
+        // 手动修改按钮显现出来
+        ui->btn_edit_sleep->setVisible(true);
+        ui->btn_edit_wake->setVisible(true);
+    } else {
+        // 如果日期是今天，则恢复打卡按钮，手动修改按钮其实也不用隐藏
+        ui->btn_sleep->setEnabled(true);
+        ui->btn_wake->setEnabled(true);
+        // ui->btn_edit_sleep->setVisible(false);
+        // ui->btn_edit_wake->setVisible(false);
+    }
+
+    // 尝试寻找本地文件
     QString filePath = dataDir() + "/" + date.toString("yyyy-MM-dd") + ".json";
     QFile file(filePath);
 
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-        return;   // 该天没有打卡记录，不做任何操作
+    // 🎓【诉求四】如果这一天没有数据
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) { //[cite: 43]
+        // 清空所有控件，显示框显示“未记录”
+        ui->spinBox_nap->setValue(0);
+        ui->spinBox_exercise->setValue(0);
+        ui->spinBox_sit->setValue(0);
+        ui->lineEdit_sleep_disp->setText("未记录");
+        ui->lineEdit_wake_disp->setText("未记录");
+        return;
+    }
 
+    // 如果有数据，则读取回填
     QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
     file.close();
 
     if (!doc.isObject()) return;
     QJsonObject obj = doc.object();
 
-    // 把存储的数据回填到界面控件
-    ui->timeEdit_sleep->setTime(QTime(obj["sleep_hour"].toInt(), obj["sleep_min"].toInt()));
-    ui->timeEdit_wake->setTime(QTime(obj["wake_hour"].toInt(),   obj["wake_min"].toInt()));
-    ui->spinBox_nap->setValue(obj["day_sleep_min"].toInt());
-    ui->spinBox_exercise->setValue(obj["exercise_min"].toInt());
-    ui->spinBox_sit->setValue(obj["sit_min"].toInt());
+    int s_h = obj["sleep_hour"].toInt(); //[cite: 43]
+    int s_m = obj["sleep_min"].toInt(); //[cite: 43]
+    int w_h = obj["wake_hour"].toInt(); //[cite: 43]
+    int w_m = obj["wake_min"].toInt(); //[cite: 43]
+
+    // 把读取到的入睡、起床、白天活动数据回填输入控件[cite: 43]
+    // 通宵的晚上，起床和入睡时间会被设置为-1，具体见sleep_core.h
+    if (s_h == -1 && w_h == -1) {
+        ui->lineEdit_sleep_disp->setText("修仙");
+        ui->lineEdit_wake_disp->setText("修仙");
+    } else {
+        ui->lineEdit_sleep_disp->setText(QString("%1:%2").arg(s_h, 2, 10, QChar('0')).arg(s_m, 2, 10, QChar('0')));
+        ui->lineEdit_wake_disp->setText(QString("%1:%2").arg(w_h, 2, 10, QChar('0')).arg(w_m, 2, 10, QChar('0')));
+    }
+    ui->spinBox_nap->setValue(obj["day_sleep_min"].toInt()); //[cite: 43]
+    ui->spinBox_exercise->setValue(obj["exercise_min"].toInt()); //[cite: 43]
+    ui->spinBox_sit->setValue(obj["sit_min"].toInt()); //[cite: 43]
+
+    // 刷新晚间睡眠时长显示！
+    updateDurationDisplay();
 }
 
 // ==========================================
@@ -147,8 +241,10 @@ void MainWindow::on_btn_sleep_clicked()
 {
     // 1. 获取当前系统的精确时间（时、分、秒）
     QTime currentTime = QTime::currentTime();
-    // 2. 将捞到的当前系统时间，自动填写到界面上那个叫"timeEdit_sleep"的时间编辑框中显示
-    ui->timeEdit_sleep->setTime(currentTime);
+    ui->lineEdit_sleep_disp->setText(currentTime.toString("HH:mm"));
+
+    updateDurationDisplay(); // 刷新时长
+
     // 3. 弹出一个温馨的提示框。参数含义：（父窗口为当前窗口, 弹窗标题, 弹窗正文文本）
     QMessageBox::information(this, "晚安守护", "已记录入睡时间！\n系统已进入静默模式，请放下手机，好好休息哦~");
 }
@@ -160,94 +256,134 @@ void MainWindow::on_btn_wake_clicked()
 {
     // 1. 获取当前系统那一瞬间的起床时间
     QTime currentTime = QTime::currentTime();
-    // 2. 将获取到的起床时间，自动填写到界面上名为"timeEdit_wake"的时间框中
-    ui->timeEdit_wake->setTime(currentTime);
+    //捞取时间填写到lineEdit_wake_disp文本框中
+    ui->lineEdit_wake_disp->setText(currentTime.toString("HH:mm"));
+    updateDurationDisplay(); // 刷新时长
 
+    /*
     // 3. 开始通过 ui-> 指针，从界面上的各个控件中捞取用户输入的数据：
     // 增加容错机制：假如没有点“我睡了”，或者没有手动填写入睡时间，此时timeEdit_sleep框为空（或者保留的是昨天的入睡时间），可能报错。
     int s_hour = ui->timeEdit_sleep->time().hour();
     int s_min  = ui->timeEdit_sleep->time().minute();
     int w_hour = ui->timeEdit_wake->time().hour();
     int w_min  = ui->timeEdit_wake->time().minute();
+    */
+    // 2. 从显示框里直接拿到要展示在弹窗里的字符串（比如 "08:30" 或 "通宵"）
+    QString s_text = ui->lineEdit_sleep_disp->text();
+    QString w_text = ui->lineEdit_wake_disp->text();
 
+    //起床时获得的“白天数据”是昨天（也就是确定的作息日）的数据
     int nap = ui->spinBox_nap->value();           // 从界面上的午睡微调框中获取用户输入的午睡分钟数 
     int exe = ui->spinBox_exercise->value();      // 从界面上的运动微调框中获取用户输入的运动分钟数
     int sit = ui->spinBox_sit->value();           // 从界面上的久坐微调框中获取用户输入的久坐分钟数
 
     // ==========================================
     // 新增：防呆与容错机制
+    /*
     // 组装带前导零的时间字符串（比如把 8:5 变成 08:05），看起来更专业
     QString s_time_str = QString("%1:%2").arg(s_hour, 2, 10, QChar('0')).arg(s_min, 2, 10, QChar('0'));
     QString w_time_str = QString("%1:%2").arg(w_hour, 2, 10, QChar('0')).arg(w_min, 2, 10, QChar('0'));
+    */
 
     // 弹出一个带自定义按钮的确认对话框
     QMessageBox msgBox(this);
     msgBox.setWindowTitle("作息结算确认");
     msgBox.setText(QString("系统读取到您的作息如下：\n\n🛌 入睡：%1\n🌅 起床：%2\n\n请确认时间是否准确？\n（若昨晚忘记点【准备入睡】，上方入睡时间可能不准）")
-                       .arg(s_time_str, w_time_str));
+                       .arg(s_text, w_text));
     msgBox.setIcon(QMessageBox::Question);
 
     // 添加三个自定义按钮，供用户选择，后两个需要记录值
-    msgBox.addButton("✅ 准确，直接结算", QMessageBox::AcceptRole);
+    msgBox.addButton("✅ 睡眠时间准确，直接结算", QMessageBox::AcceptRole);
     QPushButton *btnAllNight = msgBox.addButton("🔥 我通宵了，一分钟没睡", QMessageBox::ActionRole);
-    QPushButton *btnCancel = msgBox.addButton("❌ 不准，我去改改", QMessageBox::RejectRole);
+    QPushButton *btnCancel = msgBox.addButton("❌ 不准，我去手动改改时间", QMessageBox::RejectRole);
 
     msgBox.exec(); // 阻塞程序，等待用户在弹窗上做出点击选择
 
+    // 解析阶段：准备传给底层算法的变量
+    int s_hour = -1, s_min = -1, w_hour = -1, w_min = -1;
+
     if (msgBox.clickedButton() == btnCancel) {
         // 用户发现时间不对，点击了取消
-        return; // 直接 return 强行终止这个函数，不往下算分了，让用户回主界面慢慢调时间
+        return; // 直接 return 强行终止这个函数，不往下算分了，让用户回主界面手动调时间
     }
     // 如果点了通宵按钮
     else if (msgBox.clickedButton() == btnAllNight) {
         // 用户通宵了，强行把时间全部设为 -1
-        // 这会完美触发你们 sleep_core.h 里构造函数的彩蛋：noNightSleep = true
-        s_hour = -1;
-        s_min = -1;
-        w_hour = -1;
-        w_min = -1;
+        // 会触发你们 sleep_core.h 里构造函数的变量设置：noNightSleep = true
+        ui->lineEdit_sleep_disp->setText("通宵");
+        ui->lineEdit_wake_disp->setText("通宵");
+        updateDurationDisplay();
+        // 通宵时算法接收全是 -1 的变量，这里无需处理，因为上面声明的就是 -1
     }
-    // 如果点了“✅ 准确”，if 语句不会拦截，程序顺着往下走，继续第 4 步的算分
-    // ==========================================
+    else{
+        // 正常结算：把刚才读到的文本转换回具体的时、分数字
+        if (s_text != "通宵" && s_text != "未记录" && !s_text.isEmpty()) {
+            QTime s_t = QTime::fromString(s_text, "HH:mm");
+            s_hour = s_t.hour(); s_min = s_t.minute();
+        }
+        if (w_text != "通宵" && w_text != "未记录" && !w_text.isEmpty()) {
+            QTime w_t = QTime::fromString(w_text, "HH:mm");
+            w_hour = w_t.hour(); w_min = w_t.minute();
+        }
+    }
 
     // 4. 纽转到纯 C++ 算法领域：实例化你队友写的 SleepAnalyzer 对象，并将刚刚从界面上搜集来的 7 个变量传给它
     SleepAnalyzer todayData(s_hour, s_min, w_hour, w_min, nap, exe, sit);
-    // 5. 调用算法，计算并返回当天的睡眠健康评分（似乎对于周报并无必要）
+    // 5. 调用算法，计算并返回该作息日的睡眠健康评分（似乎对于周报并无必要）
     int score = todayData.getEnoughSleepScore();
 
     string title = "";
-    // 6. 根据当天睡眠时间计算具体数值，以及是否睡懒觉。匹配对应的修仙称号。评判标准同评分的标准
+    // 6. 根据该作息日睡眠时间计算具体数值，以及是否睡懒觉。匹配对应的修仙称号。评判标准同评分的标准
     int nightsleep = todayData.calculateNightSleep();
     bool noNightSleep = todayData.noNightSleep;
     bool overSleep = todayData.oversleep;
-    //总之我觉得后面可以把晚上睡眠和白天睡眠分开考虑，晚上不睡白天昏昏欲睡也不好，但总比不睡好x
+
     if (noNightSleep) title = "你见过凌晨五点的学一吗";// 熬穿
-    else if(overSleep) title = "小~懒~猫 ❤ 姐姐喊你学高代啦"; //睡懒觉，后面再评价：如果睡眠分小于一定数目，睡懒觉有加分（补觉）；否则不加分
+    else if(overSleep) title = "你醒啦，期末已经考完了"; //睡懒觉，后面再评价：如果睡眠分小于一定数目，睡懒觉有加分（补觉）；否则不加分
     else if(nightsleep<360) title = "这里是第几层梦境？"; //小于6h
     else if(nightsleep<420) title = "醒了吗？没醒的话，吃我一拳"; //6-7h
     else if(nightsleep<480) title = "如此理想"; //7-8h
     else if(nightsleep<=540) title = "获得睡眠硕士学位"; //8-9h
     else if(nightsleep<=600) title = "Ph.S学位"; //9-10h
-    else title = "你醒啦，期末已经考完了"; //大于10h且不算睡懒觉；睡太长也不好
+    else title = "小~懒~猫 ❤ 姐姐喊你学高代啦"; //大于10h且不算睡懒觉；睡太长也不好
     
-
+    /* 暂时不考虑的做法
     // 7. 从界面左侧的日历控件（calendarWidget）中，捕获用户当前鼠标选中的那个日期
     QDate selectedDate = ui->calendarWidget->selectedDate();
     // 8. 将获取到的日期对象转换成符合中国人阅读习惯的“XXXX年XX月XX日”字符串格式
     // 具体实现比较复杂，toString会启动一个类似状态机或字符串替换器的机制
     // 执行流程：扫描字符串并识别暗号（yyyy，MM，dd），保留普通字符并替换暗号，最后输出
     QString dateStr = selectedDate.toString("yyyy年MM月dd日");
+    */
+
+    //根据入睡时间计算作息日，一般来讲是起床时的前一天；
+    QDate recordDay = QDate::currentDate().addDays(-1);
+    //极特殊情况当晚睡当晚起，回到当天
+    if (s_hour > 12 && w_hour > s_hour)
+        recordDay = recordDay.addDays(1);
+    QDate selectedDate = ui->calendarWidget->selectedDate();
+    // 默认情况下日历选中的是当前日期。如果当前日期（也就是作息日的下一天）不等于日历日期，说明没有在记录今天的睡眠，而是选中了日历上别的日期，在记录特定日期的睡眠
+    // 这样的情况下作息日就是被选中的日期
+    // 还得让非当日时，入睡和起床按钮不能点击
+    if (selectedDate != recordDay.addDays(1))
+        recordDay = selectedDate;
+
+    //在通过起床按钮生成日报时，不需要考虑鼠标选的哪个日期。后期想要补上哪天的数据的话，加上手动重设按钮，手动编辑入睡和起床时间框，
+    //考虑加一个生成日报+保存数据的辅助函数。当点击醒来按钮时，会自动调用生成日报；
+    //假如是手动选择了其他日期，手动编辑入睡和起床时间的话，需要一个手动生成日报按钮
+    //如果一天完全没有动程序，那么也不会存下数据文件，当天就没有数据文件，直到手动编辑当日入睡和起床时间并手动生成日报
+    QString dateStr = recordDay.toString("yyyy年MM月dd日");
 
     // 获取QString格式的睡眠时长（“x小时x分钟”）
     QString durationText = todayData.ShowSleepTime(nightsleep);
 
     //生成JSON字符串
-    std::string dateStdStr = selectedDate.toString("yyyy-MM-dd").toStdString();std::string jsonPayload = SleepJsonExporter::toJsonString(todayData, dateStdStr);
+    std::string dateStdStr = recordDay.toString("yyyy-MM-dd").toStdString();std::string jsonPayload = SleepJsonExporter::toJsonString(todayData, dateStdStr);
     //存本地，修正了存储路径
     std::string fullPath = (dataDir() + "/" + QString::fromStdString(dateStdStr) + ".json").toStdString();
     SleepJsonExporter::saveToFile(jsonPayload, fullPath);
 
-    refreshCalendarColors();  // 刚保存的今天立刻染色
+    refreshCalendarColors();  // 刚保存的作息日立刻染色
     checkAndShowAchievements();  // 检查是否达成里程碑
 
     // 9. 使用 QString 强大的字符串格式化功能（.arg()），动态把日期、分数、称号拼装成一封完整的报告文本
@@ -259,7 +395,80 @@ void MainWindow::on_btn_wake_clicked()
     QMessageBox::information(this, "早安，打工人", finalReport);
 }
 
-void MainWindow::on_btn_ai_report_clicked()
+//手动修改入睡和起床时间的按钮：btn_edit_sleep和btn_edit_wake，调用了QDialog
+// 修改入睡时间的专属 QDialog
+void MainWindow::on_btn_edit_sleep_clicked()
+{
+    // 1. 动态创建一个子窗口
+    QDialog dialog(this);
+    dialog.setWindowTitle("⏰ 修改入睡时间");
+    dialog.setFixedSize(250, 150); // 设置一个优雅的弹窗大小
+
+    // 2. 准备布局和时间编辑器
+    QVBoxLayout layout(&dialog);
+    QTimeEdit timeEdit(&dialog);
+    timeEdit.setDisplayFormat("HH:mm"); // 只显示小时和分钟
+    timeEdit.setFont(QFont("Microsoft YaHei", 16, QFont::Bold)); // 字体调大点更好看
+
+    // 3. 数据回填：如果本来有时间，就让拨轮停在那个时间上
+    QString currentText = ui->lineEdit_sleep_disp->text();
+    if (currentText != "通宵" && currentText != "未记录" && !currentText.isEmpty()) {
+        timeEdit.setTime(QTime::fromString(currentText, "HH:mm"));
+    } else {
+        timeEdit.setTime(QTime::currentTime()); // 否则默认显示当前时间
+    }
+    layout.addWidget(&timeEdit);
+
+    // 4. 加上确认和取消按钮
+    QDialogButtonBox buttonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout.addWidget(&buttonBox);
+
+    // 将按钮与窗口的确认/关闭动作连接起来
+    connect(&buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(&buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    // 5. 阻塞程序并显示弹窗，如果用户点击了 Ok
+    if (dialog.exec() == QDialog::Accepted) {
+        // 把修改好的时间写回主界面的显示框
+        ui->lineEdit_sleep_disp->setText(timeEdit.time().toString("HH:mm"));
+        // 立刻联动刷新睡眠时长
+        updateDurationDisplay();
+    }
+}
+
+// 🎓 修改起床时间的专属 QDialog（逻辑完全一致）
+void MainWindow::on_btn_edit_wake_clicked()
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle("⏰ 修改起床时间");
+    dialog.setFixedSize(250, 150);
+
+    QVBoxLayout layout(&dialog);
+    QTimeEdit timeEdit(&dialog);
+    timeEdit.setDisplayFormat("HH:mm");
+    timeEdit.setFont(QFont("Microsoft YaHei", 16, QFont::Bold));
+
+    QString currentText = ui->lineEdit_wake_disp->text();
+    if (currentText != "通宵" && currentText != "未记录" && !currentText.isEmpty()) {
+        timeEdit.setTime(QTime::fromString(currentText, "HH:mm"));
+    } else {
+        timeEdit.setTime(QTime::currentTime());
+    }
+    layout.addWidget(&timeEdit);
+
+    QDialogButtonBox buttonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout.addWidget(&buttonBox);
+
+    connect(&buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(&buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        ui->lineEdit_wake_disp->setText(timeEdit.time().toString("HH:mm"));
+        updateDurationDisplay(); // 联动刷新
+    }
+}
+
+void MainWindow::on_btn_week_report_clicked()
 {
     // 1. 获取并校验用户输入的 API Key
     QString apiKey = ui->lineEdit_apiKey->text().trimmed();
@@ -279,7 +488,7 @@ void MainWindow::on_btn_ai_report_clicked()
     QString allJsonData = "以下是本弟子最近七天的真实作息 JSON 数据：\n";
     int foundFiles = 0;
 
-    // 实例化你们本地的核心算法跟踪器
+    // 实例化本地的核心算法跟踪器
     WeeklyTracker localTracker;
 
     // 1. 尝试读取近 7 天的文件（包含选中的当天，共向前推7天）

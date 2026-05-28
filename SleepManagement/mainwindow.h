@@ -37,10 +37,14 @@ private slots:
     void on_btn_sleep_clicked();
     void on_btn_wake_clicked();
     // 新增：点击 AI 报告按钮的触发函数
-    void on_btn_ai_report_clicked();
+    void on_btn_week_report_clicked();
     // 新增：大模型回信后，负责接收回复的函数
     void on_api_reply_finished(QNetworkReply *reply);
-    void onCalendarDateSelected();//日历点击，数据恢复
+    void onCalendarDateSelected();//日历点击，数据回填
+    // 新增：手动作息修改与手动保存生成的三个按钮槽函数
+    void on_btn_edit_sleep_clicked();
+    void on_btn_edit_wake_clicked();
+    void on_btn_save_report_clicked();
 
 private:
     // 核心指针：指向由 .ui 文件编译生成的界面类对象。
@@ -48,10 +52,13 @@ private:
     Ui::MainWindow *ui;
     // 新增：这是一个专门负责发 HTTP 请求的“邮递员”
     QNetworkAccessManager *networkManager;
-    // 👇 就是这里！新增这三行，告诉编译器我们有这三个私有辅助函数
+    // 新增：告诉编译器有这几个私有辅助函数
     QString dataDir();
     void refreshCalendarColors();
     void checkAndShowAchievements();
+    // 核心封装函数，传入作息日和各项具体数据进行保存和弹窗
+    // 不传入一个SleppAnalyzer对象的原因是，在哪里实例化呢
+    void save_and_report(QDate recordDay, int s_hour, int s_min, int w_hour, int w_min, int nap, int exe, int sit);
 };
 
 #endif // MAINWINDOW_H // 结束宏保护

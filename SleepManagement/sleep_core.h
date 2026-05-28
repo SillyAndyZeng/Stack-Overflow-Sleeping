@@ -8,6 +8,7 @@
 #include <QString>
 #include <sstream>
 #include <fstream>
+#include <QTime>
 
 
 //发现有一些有意义的变量，我们可以在顶部定义并控制
@@ -15,11 +16,21 @@
 #define oversleep_rewardScore 1
 #define daysleep_rewardScore 1
 #define daysleep_judgethreshold 15
+#define daySpiltHour 6
 int stayupBegin = 24;
 int stayupEnd = 8;
 int generalSleep_hour = 23; // 一般入睡时间，初始化23
 int generalWake_hour = 8;
 using namespace std;
+
+//作息日计算函数
+inline QDate getSleepDay(const QDateTime& dateTime)
+{
+    if (dateTime.time().hour() < daySpiltHour) {
+        return dateTime.date().addDays(-1);
+    }
+    return dateTime.date();
+}
 
 class SleepData{
 protected:
@@ -83,11 +94,18 @@ public:
 
     bool isStayUpLate() { //判断是否熬夜，如果在设定的0点和6点间入睡就算作熬夜
         //这个是否熬夜和是否补觉的判断标准，初始让用户自己输入，后面可以根据记录的数据取平均作为建议
-        if (Sleep_hour >= stayupBegin || Sleep_hour < stayupEnd){
-            stayUp = true;
-            return true;
+        // 熬夜区间跨过 0 点，例如 23:00 - 次日 08:00
+        if (stayupBegin > stayupEnd) {
+            stayUp = (Sleep_hour >= stayupBegin || Sleep_hour < stayupEnd);
+            return stayUp;
         }
-        else if (noNightSleep){
+        // 熬夜区间不跨过0点，比如1:00-5:00，且并非没睡觉
+        else if(!noNightSleep){
+            stayUp = (Sleep_hour >= stayupBegin && Sleep_hour < stayupEnd);
+            return stayUp;
+        }
+        //没睡觉
+        else{
             stayUp = true;
             return true; //没睡也认为是熬夜
         }
