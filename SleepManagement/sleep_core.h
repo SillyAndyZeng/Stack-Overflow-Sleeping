@@ -8,7 +8,6 @@
 #include <QString>
 #include <sstream>
 #include <fstream>
-#include <iomanip>
 
 
 //发现有一些有意义的变量，我们可以在顶部定义并控制

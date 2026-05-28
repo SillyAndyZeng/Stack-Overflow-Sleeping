@@ -13,6 +13,7 @@ qt_add_executable(SleepManagement
     mainwindow.h
     mainwindow.ui
     sleep_core.h
+    achievement_manager.h
 )
 
 target_link_libraries(SleepManagement

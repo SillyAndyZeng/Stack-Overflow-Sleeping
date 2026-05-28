@@ -1,6 +1,6 @@
 #include "mainwindow.h" // 引入对应的头文件声明
 #include "ui_mainwindow.h"  //引入由 mainwindow.ui 编译生成的底层界面头文件，不引它就无法通过 ui-> 指针访问控件
-#include "sleep_core.h"       // 队友的算分引擎
+#include "sleep_core.h"       // 算分引擎
 #include <QMessageBox>        // 引入 Qt 官方的弹窗对话框类，用于实现各种警告、信息提示弹窗
 #include <QTime>              // 抓取系统时间
 #include <QDate>              // 处理日历日期
@@ -25,6 +25,10 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow) // 动态分配内存，实例化负责管理 UI 控件的界面类
 {
     ui->setupUi(this); // 超级核心！这个函数把在图形化界面里拖拽的所有按钮、日历、输入框等，真正地绘制、布置到当前的这个MainWindow窗口上
+
+    //建立日历被点击的信号与槽机制
+    connect(ui->calendarWidget, &QCalendarWidget::selectionChanged,
+            this, &MainWindow::onCalendarDateSelected);
 
     // 初始化网络管理器
     networkManager = new QNetworkAccessManager(this);
@@ -107,6 +111,9 @@ void MainWindow::on_btn_wake_clicked()
     std::string dateStdStr = selectedDate.toString("yyyy-MM-dd").toStdString();std::string jsonPayload = SleepJsonExporter::toJsonString(todayData, dateStdStr);
     //存本地
     SleepJsonExporter::saveToFile(jsonPayload, dateStdStr + ".json");
+
+    refreshCalendarColors();  // 刚保存的今天立刻染色
+    checkAndShowAchievements();  // 检查是否达成里程碑
 
     // 9. 使用 QString 强大的字符串格式化功能（.arg()），动态把日期、分数、称号拼装成一封完整的报告文本
     // 函数中的 %1 会被 dateStr 替换，以此类推
@@ -296,4 +303,76 @@ void MainWindow::on_api_reply_finished(QNetworkReply *reply)
 
     // 释放内存
     reply->deleteLater();
+}
+
+// ==========================================
+// 日历颜色刷新：扫描 dataDir 内所有 json 文件，按状态染色
+// 颜色规则：红=熬穿  黄=熬夜  紫=久坐超标  绿=睡眠良好  蓝=正常
+// ==========================================
+void MainWindow::refreshCalendarColors()
+{
+    // 先清掉所有旧颜色，避免脏数据残留
+    ui->calendarWidget->setDateTextFormat(QDate(), QTextCharFormat());
+
+    QDir dir(dataDir());
+    const QStringList files = dir.entryList({"*.json"}, QDir::Files);
+
+    for (const QString &fileName : files) {
+        // 从文件名（yyyy-MM-dd.json）解析日期
+        QString dateStr = fileName;
+        dateStr.chop(5);  // 去掉 ".json"
+        QDate date = QDate::fromString(dateStr, "yyyy-MM-dd");
+        if (!date.isValid()) continue;
+
+        QFile file(dataDir() + "/" + fileName);
+        if (!file.open(QIODevice::ReadOnly)) continue;
+        QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        file.close();
+        if (!doc.isObject()) continue;
+
+        QJsonObject obj = doc.object();
+
+        // 读取状态字段
+        // no_night_sleep / oversleep 是你即将补充的布尔字段，
+        // 若文件里尚未存在，toBool(false) 会安全返回 false，不影响现有记录
+        bool noNightSleep = obj["no_night_sleep"].toBool(false);
+        bool stayUp       = obj["stay_up_late"].toBool(false);
+        bool oversleep    = obj["oversleep"].toBool(false);
+        int  sit          = obj["sit_min"].toInt(0);
+        int  score        = obj["sleep_score"].toInt(0);
+
+        QTextCharFormat fmt;
+        fmt.setFontWeight(QFont::Bold);
+
+        // 使用十六进制数表示RGB颜色
+        if (noNightSleep)  fmt.setBackground(QColor("0xFF6B6B")); // 红：熬穿
+        else if (stayUp)        fmt.setBackground(QColor("0xFFD93D")); // 黄：熬夜
+        else if (oversleep)     fmt.setBackground(QColor("0xC8A2C8")); // 紫：睡懒觉
+        else if (sit > 360)     fmt.setBackground(QColor("0xFFB347")); // 橙：久坐超标
+        else if (score >= 3)    fmt.setBackground(QColor("0x6BCB77")); // 绿：睡眠良好
+        else                    fmt.setBackground(QColor("0x4D96FF")); // 蓝：正常
+
+        ui->calendarWidget->setDateTextFormat(date, fmt);
+    }
+}
+
+// ==========================================
+// 成就检查：在每次打卡后调用，达成条件时弹出提示
+// ==========================================
+void MainWindow::checkAndShowAchievements()
+{
+    AchievementManager am(dataDir());
+    QString badge = am.currentBadge();
+    if (badge.isEmpty()) return;
+
+    int ci = am.checkInDays();
+    int es = am.earlySleepDays();
+
+    // 只在刚好达到里程碑的那一天弹出，避免每次都弹
+    bool isMilestone = (ci == 7 || ci == 30 || es == 3 || es == 7);
+    if (!isMilestone) return;
+
+    QMessageBox::information(this, "🎖 成就解锁！",
+                             QString("恭喜解锁新成就：\n\n%1\n\n连续打卡 %2 天 · 连续早睡 %3 天\n\n继续保持！")
+                                 .arg(badge).arg(ci).arg(es));
 }
