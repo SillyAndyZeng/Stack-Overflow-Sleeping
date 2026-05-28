@@ -2,6 +2,13 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+// 新增：引入网络和JSON相关的头文件
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+
 /*
 这个头文件用来定义你的主窗口类里有哪些变量、有哪些函数。
 */
@@ -28,11 +35,17 @@ public:
 private slots:
     void on_btn_sleep_clicked();
     void on_btn_wake_clicked();
+    // 新增：点击 AI 报告按钮的触发函数
+    void on_btn_ai_report_clicked();
+    // 新增：大模型回信后，负责接收回复的函数
+    void on_api_reply_finished(QNetworkReply *reply);
 
 private:
     // 核心指针：指向由 .ui 文件编译生成的界面类对象。
     // 在对应的 .cpp 文件中，你所有想操控的界面控件（日历、按钮、输入框等），全部都要通过这个 `ui->` 指针来访问！
     Ui::MainWindow *ui;
+    // 新增：这是一个专门负责发 HTTP 请求的“邮递员”
+    QNetworkAccessManager *networkManager;
 };
 
 #endif // MAINWINDOW_H // 结束宏保护

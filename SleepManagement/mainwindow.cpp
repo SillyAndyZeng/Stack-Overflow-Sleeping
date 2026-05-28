@@ -24,6 +24,12 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow) // 动态分配内存，实例化负责管理 UI 控件的界面类
 {
     ui->setupUi(this); // 超级核心！这个函数把在图形化界面里拖拽的所有按钮、日历、输入框等，真正地绘制、布置到当前的这个MainWindow窗口上
+
+    // 初始化网络管理器
+    networkManager = new QNetworkAccessManager(this);
+
+    // 当邮递员收到回信时，自动把信（reply）交给 on_api_reply_finished 函数去拆解
+    connect(networkManager, &QNetworkAccessManager::finished, this, &MainWindow::on_api_reply_finished);
 }
 
 MainWindow::~MainWindow()
@@ -92,4 +98,65 @@ void MainWindow::on_btn_wake_clicked()
 
     // 10. 弹出一个最终的日结报告窗口，将拼装好的内容展示给用户看                              
     QMessageBox::information(this, "早安，打工人", finalReport);
+}
+
+void MainWindow::on_btn_ai_report_clicked()
+{
+    ui->textBrowser_ai->setText("正在呼叫大模型，请稍候...");
+
+    // 1. 准备你要发给大模型的话（这里你需要把你队友类里的数据转成字符串，这里先用假数据演示）
+    QString sleepData = "我最近三天分别睡了 5小时、6小时、4小时，并且连续两天都在凌晨 2 点后入睡。请给我一份刻薄又搞笑的修仙警告报告。";
+
+    // 2. 按照你使用的大模型 API 的要求，组装 JSON 数据包
+    QJsonObject requestBody;
+    requestBody["model"] = "你使用的大模型名字"; // 例如 "gpt-3.5-turbo" 或 "glm-4"
+
+    QJsonArray messagesArray;
+    QJsonObject messageItem;
+    messageItem["role"] = "user";
+    messageItem["content"] = sleepData;
+    messagesArray.append(messageItem);
+
+    requestBody["messages"] = messagesArray;
+
+    QJsonDocument doc(requestBody);
+    QByteArray postData = doc.toJson();
+
+    // 3. 填好信封（设置 URL 和 请求头）
+    QUrl url("大模型厂商提供的API地址");
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    // 注意：你需要去大模型官网申请一个 API Key，替换到下面这行
+    request.setRawHeader("Authorization", "Bearer 你的_API_KEY");
+
+    // 4. 让邮递员把信发出去（发送 POST 请求）
+    networkManager->post(request, postData);
+}
+
+void MainWindow::on_api_reply_finished(QNetworkReply *reply)
+{
+    // 如果网络出错（比如没网）
+    if (reply->error() != QNetworkReply::NoError) {
+        ui->textBrowser_ai->setText("网络请求失败：" + reply->errorString());
+        reply->deleteLater();
+        return;
+    }
+
+    // 读取所有的返回数据
+    QByteArray responseData = reply->readAll();
+
+    // 解析 JSON 找到大模型说的那句话（注意：不同大模型的返回格式略有不同，以下是通用格式）
+    QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+    QJsonObject jsonObj = jsonDoc.object();
+
+    QJsonArray choices = jsonObj["choices"].toArray();
+    QJsonObject firstChoice = choices[0].toObject();
+    QJsonObject message = firstChoice["message"].toObject();
+    QString aiText = message["content"].toString();
+
+    // 把大模型的回复显示在界面的文本框里
+    ui->textBrowser_ai->setText(aiText);
+
+    // 释放内存
+    reply->deleteLater();
 }
