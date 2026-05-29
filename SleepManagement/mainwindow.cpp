@@ -99,12 +99,12 @@ void MainWindow::refreshCalendarColors()
         fmt.setFontWeight(QFont::Bold);
 
         // 使用十六进制数表示RGB颜色
-        if (noNightSleep)  fmt.setBackground(QColor("0xFF6B6B")); // 红：熬穿
-        else if (stayUp)        fmt.setBackground(QColor("0xFFD93D")); // 黄：熬夜
-        else if (oversleep)     fmt.setBackground(QColor("0xC8A2C8")); // 紫：睡懒觉
-        else if (sit > 360)     fmt.setBackground(QColor("0xFFB347")); // 橙：久坐超标
-        else if (score >= 3)    fmt.setBackground(QColor("0x6BCB77")); // 绿：睡眠良好
-        else                    fmt.setBackground(QColor("0x4D96FF")); // 蓝：正常
+        if (noNightSleep)  fmt.setBackground(QColor("FF6B6B")); // 红：熬穿
+        else if (stayUp)        fmt.setBackground(QColor("FFD93D")); // 黄：熬夜
+        else if (oversleep)     fmt.setBackground(QColor("C8A2C8")); // 紫：睡懒觉
+        else if (sit > 360)     fmt.setBackground(QColor("FFB347")); // 橙：久坐超标
+        else if (score >= 3)    fmt.setBackground(QColor("6BCB77")); // 绿：睡眠良好
+        else                    fmt.setBackground(QColor("4D96FF")); // 蓝：正常
 
         ui->calendarWidget->setDateTextFormat(date, fmt);
     }
@@ -227,7 +227,16 @@ void MainWindow::onCalendarDateSelected()
     if (s_h == -1 && w_h == -1) {
         ui->lineEdit_sleep_disp->setText("修仙");
         ui->lineEdit_wake_disp->setText("修仙");
-    } else {
+    } 
+    //dyq 260529 2300添加 依旧是为了解决没有把数据读入日历
+    else if (w_h == -2) {
+    // 只记录了入睡，尚未起床
+    ui->lineEdit_sleep_disp->setText(
+        QString("%1:%2").arg(s_h, 2, 10, QChar('0')).arg(s_m, 2, 10, QChar('0')));
+    ui->lineEdit_wake_disp->setText("未记录");
+    }
+    //
+    else {
         ui->lineEdit_sleep_disp->setText(QString("%1:%2").arg(s_h, 2, 10, QChar('0')).arg(s_m, 2, 10, QChar('0')));
         ui->lineEdit_wake_disp->setText(QString("%1:%2").arg(w_h, 2, 10, QChar('0')).arg(w_m, 2, 10, QChar('0')));
     }
@@ -270,10 +279,24 @@ void MainWindow::on_btn_sleep_clicked()
                               .arg(w_text).arg(h).arg(m);
         }
     }
-
     // 只要点入睡，就把起床记录清空，确保时长一定显示 --:--，就算早上不点起床，连点两次睡眠也没关系
     ui->lineEdit_wake_disp->setText("未记录");
-    updateDurationDisplay(); // 刷新时长
+    updateDurationDisplay(); // 刷新时长 
+
+    // 在弹窗之前，立即把入睡时间持久化到磁盘 dyq 260529晚2300添加
+    // 作息日是今天（入睡时还没到起床，作息日归今天）
+    QDate sleepDay = getSleepDay(QDateTime::currentDateTime());
+    SleepAnalyzer partialData(
+        currentTime.hour(), currentTime.minute(),
+        -2, -2,  // -2 = 尚未起床的占位符
+        0, 0, 0
+    );
+    std::string dateStdStr = sleepDay.toString("yyyy-MM-dd").toStdString();
+    std::string jsonPayload = SleepJsonExporter::toJsonString(partialData, dateStdStr);
+    std::string fullPath = (dataDir() + "/" + QString::fromStdString(dateStdStr) + ".json").toStdString();
+    SleepJsonExporter::saveToFile(jsonPayload, fullPath);//dyq 260529晚2300添加
+
+
 
     // 3. 弹出一个温馨的提示框。参数含义：（父窗口为当前窗口, 弹窗标题, 弹窗正文文本）
     QMessageBox::information(this, "晚安守护", "已记录入睡时间！\n系统已进入静默模式，请放下手机，好好休息哦~");
