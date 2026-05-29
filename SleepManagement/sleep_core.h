@@ -87,6 +87,7 @@ public:
     int calculateNightSleep() {  //计算晚上睡眠时间：[一般睡觉时间提前2h, 一般起床时间延后2h]之间的时间段
         if (noNightSleep) return 0; // 如果没有记录睡眠时间，则晚上睡眠时间为0
 
+        isStayUpLate(); // 调用函数确保stayUp被计算
         int start = Sleep_hour * 60 + Sleep_min;  //计算睡眠时间点在一天中是第几分钟
         int end = Wake_hour * 60 + Wake_min;  //计算起床时间点在一天中是第几分钟
         //此时用户昨晚肯定是睡了觉的，也就是入睡时间不会晚于其一般起床时间。只会出现早睡（早于其一般入睡时间）与正常睡；以及睡懒觉和正常起
@@ -139,7 +140,7 @@ public:
         else if(nightsleep<480) return 3; //7-8h
         else if(nightsleep<=540) return 3; //8-9h
         else if(nightsleep<=600) return 2; //9-10h
-        else return 1; //大于10h且不算睡懒觉；睡太长也不好
+        else {oversleep = true; return 1;} //大于10h：算睡懒觉；睡太长也不好
     }
     void displayReport() {
         int total = getTotalSleep();

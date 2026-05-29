@@ -95,6 +95,7 @@ void MainWindow::refreshCalendarColors()
         bool stayUp       = obj["stay_up_late"].toBool(false);
         bool oversleep    = obj["oversleep"].toBool(false);
         int  sit          = obj["sit_min"].toInt(0);
+        int  exe          = obj["exercise_min"].toInt(0);
         int  score        = obj["sleep_score"].toInt(0);
 
         QTextCharFormat fmt;
@@ -105,7 +106,7 @@ void MainWindow::refreshCalendarColors()
         if (noNightSleep)  bgColor = QColor("#FF6B6B"); // 红：熬穿
         else if (stayUp)        bgColor = QColor("#FFD93D"); // 黄：熬夜
         else if (oversleep)     bgColor = QColor("#C8A2C8"); // 紫：睡懒觉
-        else if (sit > 360)     bgColor = QColor("#FFB347"); // 橙：久坐超标
+        else if (sit > 360 || exe < 30)     bgColor = QColor("#FFB347"); // 橙：久坐超标或者运动不足
         else if (score >= 3)    bgColor = QColor("#6BCB77"); // 绿：睡眠良好
         else                    bgColor = QColor("#4D96FF"); // 蓝：正常
 
@@ -485,7 +486,7 @@ void MainWindow::save_and_report(QDate recordDay, int s_hour, int s_min, int w_h
     int score = todayData.getEnoughSleepScore();
 
     string title = "";
-    // 6. 根据该作息日睡眠时间计算具体数值，以及是否睡懒觉。匹配对应的修仙称号。评判标准同评分的标准
+    // 6. 根据该作息日睡眠时间计算具体数值，以及是否熬夜、是否睡懒觉。匹配对应的修仙称号。评判标准同评分的标准
     int nightsleep = todayData.calculateNightSleep();
     bool noNightSleep = todayData.noNightSleep;
     bool overSleep = todayData.oversleep;
