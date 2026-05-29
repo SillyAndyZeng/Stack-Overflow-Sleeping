@@ -47,6 +47,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->btn_edit_wake->setVisible(false);
     // 默认隐藏手动保存按钮
     ui->btn_save_report->setVisible(false);
+
+    refreshCalendarColors();//新增:启动时加载历史颜色
 }
 MainWindow::~MainWindow()
 {
@@ -99,12 +101,16 @@ void MainWindow::refreshCalendarColors()
         fmt.setFontWeight(QFont::Bold);
 
         // 使用十六进制数表示RGB颜色
-        if (noNightSleep)  fmt.setBackground(QColor("FF6B6B")); // 红：熬穿
-        else if (stayUp)        fmt.setBackground(QColor("FFD93D")); // 黄：熬夜
-        else if (oversleep)     fmt.setBackground(QColor("C8A2C8")); // 紫：睡懒觉
-        else if (sit > 360)     fmt.setBackground(QColor("FFB347")); // 橙：久坐超标
-        else if (score >= 3)    fmt.setBackground(QColor("6BCB77")); // 绿：睡眠良好
-        else                    fmt.setBackground(QColor("4D96FF")); // 蓝：正常
+        QColor bgColor;
+        if (noNightSleep)  bgColor = QColor("#FF6B6B"); // 红：熬穿
+        else if (stayUp)        bgColor = QColor("#FFD93D"); // 黄：熬夜
+        else if (oversleep)     bgColor = QColor("#C8A2C8"); // 紫：睡懒觉
+        else if (sit > 360)     bgColor = QColor("#FFB347"); // 橙：久坐超标
+        else if (score >= 3)    bgColor = QColor("#6BCB77"); // 绿：睡眠良好
+        else                    bgColor = QColor("#4D96FF"); // 蓝：正常
+
+        fmt.setBackground(QBrush(bgColor)); //显式用 QBrush
+        fmt.setForeground(QBrush(Qt::black)); //设置前景色(文字颜色)作为保底，保证文字可读
 
         ui->calendarWidget->setDateTextFormat(date, fmt);
     }
