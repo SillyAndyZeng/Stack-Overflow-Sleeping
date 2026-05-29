@@ -6,13 +6,19 @@
 #include <QTime>              // 抓取系统时间
 #include <QDate>              // 处理日历日期
 #include <QTimeEdit>  // 引入时间编辑器控件的类声明
+#include <QDateEdit>
 #include <QSpinBox>         // 引入数字微调框控件的类声明
 #include <QCalendarWidget>  // 引入日历控件的类声明
 #include <QFile>
 #include <QDir>
 #include <QDialog>
 #include <QVBoxLayout>
-#include <QDialogButtonBox>
+#include <QDialogButtonBox> // 美化的手动编辑时间窗口
+#include <QFormLayout> // 菜单相关
+//用于非阻塞（非sleep式）的停顿
+#include <QEventLoop>
+#include <QTimer>
+
 /*
 当界面上的按钮被点击时，具体要做什么计算、弹出什么提示，全部写在这里。
 什么是 ui->？
@@ -30,25 +36,102 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow) // 动态分配内存，实例化负责管理 UI 控件的界面类
 {
     ui->setupUi(this); // 核心！这个函数把在图形化界面里拖拽的所有按钮、日历、输入框等，真正地绘制、布置到当前的这个MainWindow窗口上
+
+    // 限制日历最大可选日期为今天，未来的日期将被置灰且无法点击
+    ui->calendarWidget->setMaximumDate(QDate::currentDate());
+
     connect(ui->calendarWidget, &QCalendarWidget::selectionChanged,
         this, &MainWindow::onCalendarDateSelected);//构造函数绑定日历信号
+
+    // 【新增】创建下拉菜单并绑定到清理按钮上
+    QMenu *clearMenu = new QMenu(this);
+
+    // 创建三个具体的菜单动作（Action）
+    QAction *actClearToday = new QAction("🗑️ 清空当前选中日期", this);
+    QAction *actClearRange = new QAction("📅 清空指定日期区间", this);
+    QAction *actClearAll   = new QAction("🔥 清空全部数据 (跑路)", this);
+
+    // 把动作装进菜单里
+    clearMenu->addAction(actClearToday);
+    clearMenu->addAction(actClearRange);
+    clearMenu->addAction(actClearAll);
+
+    // 将菜单挂载到在UI里建的清理工具按钮上
+    ui->btn_clear_data->setMenu(clearMenu);
+
+    // 将这三个动作的触发信号与要写的槽函数连接起来
+    connect(actClearToday, &QAction::triggered, this, &MainWindow::on_action_clear_today_triggered);
+    connect(actClearRange, &QAction::triggered, this, &MainWindow::on_action_clear_range_triggered);
+    connect(actClearAll,   &QAction::triggered, this, &MainWindow::on_action_clear_all_triggered);
+
     // 初始化网络管理器
     networkManager = new QNetworkAccessManager(this);
 
     // connect函数：当收到大模型回信时，自动把信（reply）交给 on_api_reply_finished 函数去拆解
     connect(networkManager, &QNetworkAccessManager::finished, this, &MainWindow::on_api_reply_finished);
 
-    // 【初始化时】把显示框设为只读，不允许键盘修改
+    // 【初始化时】把四个显示框设为只读，不允许键盘修改
     ui->lineEdit_sleep_disp->setReadOnly(true);
     ui->lineEdit_wake_disp->setReadOnly(true);
+    ui->lineEdit_duration_disp->setReadOnly(true);
+    ui->lineEdit_selected_date->setReadOnly(true);
 
     // 默认隐藏历史修改按钮（只有点选过去的日子才展示）
     ui->btn_edit_sleep->setVisible(false);
     ui->btn_edit_wake->setVisible(false);
     // 默认隐藏手动保存按钮
-    ui->btn_save_report->setVisible(false);
+    // ui->btn_save_report->setVisible(false);
 
     refreshCalendarColors();//新增:启动时加载历史颜色
+    updateAchievementDisplay(); // 启动时加载并显示成就
+
+    // ==========================================================
+    // 【新增】动态创建高级日历色彩图例
+    // ==========================================================
+    // 1. 给我们在 UI 里留好的 widget_legend 容器设置一个网格布局
+    QGridLayout *legendLayout = new QGridLayout(ui->widget_legend);
+    legendLayout->setContentsMargins(10, 5, 10, 5); // 设置内边距
+    legendLayout->setHorizontalSpacing(15);         // 设置色块和文字的间距
+    legendLayout->setVerticalSpacing(8);            // 设置行间距
+
+    // 2. 定义我们的图例数据（颜色数值要和 refreshCalendarColors 里完全一致）
+    struct LegendItem {
+        unsigned int color;
+        QString text;
+    };
+
+    QList<LegendItem> legendList = {
+        {0x6BCB77, "良好：睡眠充足 (score>=3)"},
+        {0x4D96FF, "正常：普通作息记录"},
+        {0xFFD93D, "熬夜："},
+        {0xC8A2C8, "懒觉：起床过晚"},
+        {0xFFB347, "警示：久坐超标 或 运动不足"},
+        {0xFF6B6B, "通宵：修仙暴击，整夜未眠"}
+    };
+
+    // 3. 循环将这些图例塞进布局中
+    for (int i = 0; i < legendList.size(); ++i) {
+        // 创建左侧的小色块（用 QLabel 配合 CSS 绘制出圆角）
+        QLabel *colorLabel = new QLabel(this);
+        colorLabel->setFixedSize(16, 16); // 固定大小
+        colorLabel->setStyleSheet(QString(
+                                      "background-color: #%1;"
+                                      "border-radius: 8px;"        // 圆角半径为大小的一半，完美切成正圆形
+                                      "border: 1px solid #DCDCDC;" // 加一个淡淡的灰色边框，防止浅色块在白底上看不清
+                                      ).arg(legendList[i].color, 6, 16, QChar('0'))); // 将整型转为16进制颜色字符串
+
+        // 创建右侧的文本解释
+        QLabel *textLabel = new QLabel(legendList[i].text, this);
+        // 可以稍微美化下字体，让它看起来更高级
+        textLabel->setStyleSheet("font-family: 'Microsoft YaHei'; font-size: 11px; color: #555555;");
+
+        // 塞进网格布局：第 i 行，第 0 列放色块；第 i 行，第 1 列放文字
+        legendLayout->addWidget(colorLabel, i, 0, Qt::AlignVCenter | Qt::AlignLeft);
+        legendLayout->addWidget(textLabel, i, 1, Qt::AlignVCenter | Qt::AlignLeft);
+    }
+    // 让布局里的元素都靠上对齐，不要散开
+    legendLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    // ==========================================================
 }
 MainWindow::~MainWindow()
 {
@@ -103,12 +186,12 @@ void MainWindow::refreshCalendarColors()
 
         // 使用十六进制数表示RGB颜色
         QColor bgColor;
-        if (noNightSleep)  bgColor = QColor("#FF6B6B"); // 红：熬穿
-        else if (stayUp)        bgColor = QColor("#FFD93D"); // 黄：熬夜
-        else if (oversleep)     bgColor = QColor("#C8A2C8"); // 紫：睡懒觉
-        else if (sit > 360 || exe < 30)     bgColor = QColor("#FFB347"); // 橙：久坐超标或者运动不足
-        else if (score >= 3)    bgColor = QColor("#6BCB77"); // 绿：睡眠良好
-        else                    bgColor = QColor("#4D96FF"); // 蓝：正常
+        if (noNightSleep)  bgColor = QColor(0xFF6B6B); // 红：熬穿
+        else if (stayUp)        bgColor = QColor(0xFFD93D); // 黄：熬夜
+        else if (oversleep)     bgColor = QColor(0xC8A2C8); // 紫：睡懒觉
+        else if (sit > 360 || exe < 30)     bgColor = QColor(0xFFB347); // 橙：久坐超标或者运动不足
+        else if (score >= 3)    bgColor = QColor(0x6BCB77); // 绿：睡眠良好
+        else                    bgColor = QColor(0x4D96FF); // 蓝：正常
 
         fmt.setBackground(QBrush(bgColor)); //显式用 QBrush
         fmt.setForeground(QBrush(Qt::black)); //设置前景色(文字颜色)作为保底，保证文字可读
@@ -136,6 +219,27 @@ void MainWindow::checkAndShowAchievements()
     QMessageBox::information(this, "🎖 成就解锁！",
                              QString("恭喜解锁新成就：\n\n%1\n\n连续打卡 %2 天 · 连续早睡 %3 天\n\n继续保持！")
                                  .arg(badge).arg(ci).arg(es));
+}
+
+// ==========================================
+// 读取成就逻辑并实时更新到主界面 UI
+// ==========================================
+void MainWindow::updateAchievementDisplay()
+{
+    // 实例化你的成就管理器，传入数据文件夹路径（dataDir()为你定义获取路径的函数）
+    AchievementManager am(dataDir());
+
+    // 获取当前解锁的所有徽章文本
+    QString badges = am.currentBadge();
+
+    if (badges.isEmpty()) {
+        ui->label_achievements->setText("✨ 暂无成就，规律作息即可解锁徽章！");
+        ui->label_achievements->setStyleSheet("color: #888888; font-family: 'Microsoft YaHei';");
+    } else {
+        // 如果有成就，给它套上一个精致的样式
+        ui->label_achievements->setText("已获成就: " + badges);
+        ui->label_achievements->setStyleSheet("color: #FF8C00; font-weight: bold; font-family: 'Microsoft YaHei';");
+    }
 }
 
 // 🎓【新增辅助函数】动态读取界面上的时间，计算时长并显示
@@ -182,6 +286,10 @@ void MainWindow::updateDurationDisplay()
 void MainWindow::onCalendarDateSelected()
 {
     QDate date = ui->calendarWidget->selectedDate();
+    // 显示选择的日期
+    QString dateStr = date.toString("yyyy-MM-dd");
+    ui->lineEdit_selected_date->setText(dateStr);
+
     QDate today = QDate::currentDate();
 
     // 【手动编辑】如果选中的不是今天（即手动编辑之前的日子）
@@ -256,6 +364,30 @@ void MainWindow::onCalendarDateSelected()
 }
 
 // ==========================================
+// 手动设置通宵按钮，仅仅是设置通宵，下一步可以按我起床了，也可以按生成报告和保存数据，毕竟这俩是一样的
+void MainWindow::on_btn_set_nosleep_clicked(){
+    // 首先弹出一个带按钮的提示框
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle("确认通宵了吗");
+    msgBox.setText(QString("嘛，真没睡假没睡"));
+    msgBox.setIcon(QMessageBox::Question);
+
+    QPushButton *btnCancel = msgBox.addButton("❌ 算了算了", QMessageBox::RejectRole);
+    QPushButton *btnAccept = msgBox.addButton("我愿意。", QMessageBox::AcceptRole);
+
+    msgBox.exec(); // 阻塞程序，等待用户在弹窗上做出点击选择
+
+    if (msgBox.clickedButton() == btnCancel) return;
+    else if (msgBox.clickedButton() == btnAccept){
+        // 用户通宵了，强行把时间全部设为 -1
+        // 会触发你们 sleep_core.h 里构造函数的变量设置：noNightSleep = true
+        ui->lineEdit_sleep_disp->setText("通宵");
+        ui->lineEdit_wake_disp->setText("通宵");
+        updateDurationDisplay();
+    }
+}
+
+// ==========================================
 // 动作 1：用户点击【准备入睡】按钮，通过信号-槽机制触发此函数
 // ==========================================
 void MainWindow::on_btn_sleep_clicked()
@@ -288,7 +420,9 @@ void MainWindow::on_btn_sleep_clicked()
     }
     // 只要点入睡，就把起床记录清空，确保时长一定显示 --:--，就算早上不点起床，连点两次睡眠也没关系
     ui->lineEdit_wake_disp->setText("未记录");
-    updateDurationDisplay(); // 刷新时长 
+    updateDurationDisplay(); // 刷新时长
+
+    // ui->btn_sleep->setEnabled(false); // 没必要
 
     // 在弹窗之前，立即把入睡时间持久化到磁盘 dyq 260529晚2300添加
     // 作息日是今天（入睡时还没到起床，作息日归今天）
@@ -303,10 +437,8 @@ void MainWindow::on_btn_sleep_clicked()
     std::string fullPath = (dataDir() + "/" + QString::fromStdString(dateStdStr) + ".json").toStdString();
     SleepJsonExporter::saveToFile(jsonPayload, fullPath);//dyq 260529晚2300添加
 
-
-
     // 3. 弹出一个温馨的提示框。参数含义：（父窗口为当前窗口, 弹窗标题, 弹窗正文文本）
-    QMessageBox::information(this, "晚安守护", "已记录入睡时间！\n系统已进入静默模式，请放下手机，好好休息哦~");
+    QMessageBox::information(this, "晚安守护", "已记录入睡时间！\n系统已进入静默模式，请放下手机，好好休息哦~\n再次点按这个按钮会覆盖上次的数据，不用急");
 }
 
 // ==========================================
@@ -352,10 +484,17 @@ void MainWindow::on_btn_wake_clicked()
                        .arg(s_text, w_text));
     msgBox.setIcon(QMessageBox::Question);
 
-    // 添加三个自定义按钮，供用户选择，后两个需要记录值
-    msgBox.addButton("✅ 睡眠时间准确，直接结算", QMessageBox::AcceptRole);
-    QPushButton *btnAllNight = msgBox.addButton("🔥 我通宵了，一分钟没睡", QMessageBox::ActionRole);
-    QPushButton *btnCancel = msgBox.addButton("❌ 不准，我去手动改改时间", QMessageBox::RejectRole);
+    // 添加三个自定义按钮，供用户选择，有两个需要记录值
+    // 不让通宵按钮和睡了觉的按钮同时出现
+    QPushButton *btnAllNight = nullptr;
+    //考虑了用户通宵的所有情况，不管点没点手动设置通宵，都能弹出这个按钮
+    if (s_text == "通宵" || w_text == "通宵" || s_text == "未记录" || w_text == "未记录"){
+        btnAllNight = msgBox.addButton("🔥 我通宵了，一分钟没睡", QMessageBox::ActionRole);
+    }
+    else{
+        msgBox.addButton("✅ 睡眠时间准确，直接结算", QMessageBox::AcceptRole);
+    }
+    QPushButton *btnCancel = msgBox.addButton("❌ 不准，我去手动改改时间或者设定通宵", QMessageBox::RejectRole);
 
     msgBox.exec(); // 阻塞程序，等待用户在弹窗上做出点击选择
 
@@ -518,13 +657,15 @@ void MainWindow::save_and_report(QDate recordDay, int s_hour, int s_min, int w_h
     QString durationText = todayData.ShowSleepTime(nightsleep);
 
     //生成JSON字符串
-    std::string dateStdStr = recordDay.toString("yyyy-MM-dd").toStdString();std::string jsonPayload = SleepJsonExporter::toJsonString(todayData, dateStdStr);
+    std::string dateStdStr = recordDay.toString("yyyy-MM-dd").toStdString();
+    std::string jsonPayload = SleepJsonExporter::toJsonString(todayData, dateStdStr);
     //存本地，修正了存储路径
     std::string fullPath = (dataDir() + "/" + QString::fromStdString(dateStdStr) + ".json").toStdString();
     SleepJsonExporter::saveToFile(jsonPayload, fullPath);
 
     refreshCalendarColors();  // 刚保存的作息日立刻染色
     checkAndShowAchievements();  // 检查是否达成里程碑
+    updateAchievementDisplay(); // 实时联动成就的显示
 
     // 9. 使用 QString 强大的字符串格式化功能（.arg()），动态把日期、分数、称号拼装成一封完整的报告文本
     // 函数中的 %1 会被 dateStr 替换，以此类推
@@ -535,9 +676,12 @@ void MainWindow::save_and_report(QDate recordDay, int s_hour, int s_min, int w_h
     QMessageBox::information(this, "早安，打工人", finalReport);
 }
 
-// 非今日，该按钮才会出现；点击“保存并生成简报”触发该按钮
+// 点击“保存并生成简报”触发该按钮。假如没睡觉，没有按我起床了或者
 void MainWindow::on_btn_save_report_clicked()
 {
+    // 不用玩那么多花的，其功能和我起床了按钮没有任何区别
+    MainWindow::on_btn_wake_clicked();
+    /*
     // 1. 获取当前日历上选中的那一天作为归属作息日
     QDate recordDay = ui->calendarWidget->selectedDate();
 
@@ -572,6 +716,114 @@ void MainWindow::on_btn_save_report_clicked()
 
     // 5. 呼叫我们之前封装好的辅助函数，带走所有保存、刷新、弹窗逻辑
     save_and_report(recordDay, s_hour, s_min, w_hour, w_min, nap, exe, sit);
+    */
+}
+
+// ==========================================
+// 清理功能 1：清空当前日历上选中的那一天
+// ==========================================
+void MainWindow::on_action_clear_today_triggered()
+{
+    QDate selectedDate = ui->calendarWidget->selectedDate();
+    QString filePath = dataDir() + "/" + selectedDate.toString("yyyy-MM-dd") + ".json";
+
+    // 删除前确认
+    auto reply = QMessageBox::question(this, "确认清理",
+                                       QString("确定要让 %1 的作息记录灰飞烟灭吗？\n(此操作不可逆！)").arg(selectedDate.toString("yyyy-MM-dd")),
+                                       QMessageBox::Yes | QMessageBox::No);
+
+    if (reply == QMessageBox::Yes) {
+        QFile file(filePath);
+        if (file.exists()) {
+            file.remove();
+            refreshCalendarColors();   // 刷新日历，去掉颜色
+            updateAchievementDisplay(); // 实时联动成就的显示
+            onCalendarDateSelected();  // 触发一次日期点击，让右侧的显示框全变回“未记录”
+            QMessageBox::information(this, "成功", "该日数据已清除。");
+        } else {
+            QMessageBox::information(this, "提示", "这一天本来就没有记录数据哦。");
+        }
+    }
+}
+
+// ==========================================
+// 清理功能 2：清空指定区间
+// ==========================================
+void MainWindow::on_action_clear_range_triggered()
+{
+    // 动态造一个选择日期的子窗口
+    QDialog dialog(this);
+    dialog.setWindowTitle("📅 选择要清空的区间");
+    dialog.setFixedSize(300, 150);
+
+    QFormLayout layout(&dialog);
+    // 默认起始时间设为7天前，结束时间设为今天
+    QDateEdit *startDateEdit = new QDateEdit(QDate::currentDate().addDays(-7), &dialog);
+    QDateEdit *endDateEdit = new QDateEdit(QDate::currentDate(), &dialog);
+    startDateEdit->setCalendarPopup(true); // 允许弹出小日历选日期
+    endDateEdit->setCalendarPopup(true);
+
+    layout.addRow("开始日期:", startDateEdit);
+    layout.addRow("结束日期:", endDateEdit);
+
+    QDialogButtonBox buttonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout.addRow(&buttonBox);
+
+    connect(&buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(&buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        QDate start = startDateEdit->date();
+        QDate end = endDateEdit->date();
+
+        // 如果用户选反了，调换过来
+        if (start > end) std::swap(start, end);
+
+        auto reply = QMessageBox::question(this, "确认清理",
+                                           QString("确定要清空 %1 到 %2 之间的所有数据吗？").arg(start.toString("yyyy-MM-dd"), end.toString("yyyy-MM-dd")),
+                                           QMessageBox::Yes | QMessageBox::No);
+
+        if (reply == QMessageBox::Yes) {
+            int deletedCount = 0;
+            QDate curr = start;
+            // 循环遍历这几天，删文件
+            while (curr <= end) {
+                QString path = dataDir() + "/" + curr.toString("yyyy-MM-dd") + ".json";
+                if (QFile::remove(path)) {
+                    deletedCount++;
+                }
+                curr = curr.addDays(1);
+            }
+            refreshCalendarColors();
+            updateAchievementDisplay(); // 实时联动成就的显示
+            onCalendarDateSelected();
+            QMessageBox::information(this, "成功", QString("清理完成，共删除了 %1 天的数据。").arg(deletedCount));
+        }
+    }
+}
+
+// ==========================================
+// 清理功能 3：清空全部数据
+// ==========================================
+void MainWindow::on_action_clear_all_triggered()
+{
+    auto reply = QMessageBox::critical(this, "🚨",
+                                       "确定要清空【所有】作息数据吗？\n你的所有修仙记录将彻底归零！",
+                                       QMessageBox::Yes | QMessageBox::No);
+
+    if (reply == QMessageBox::Yes) {
+        QDir dir(dataDir());
+        // 扫描目录下所有的 json 文件
+        QStringList files = dir.entryList({"*.json"}, QDir::Files);
+        for (const QString &fileName : files) {
+            dir.remove(fileName); // 逐个击破
+        }
+
+        refreshCalendarColors();
+        updateAchievementDisplay(); // 实时联动成就的显示
+        onCalendarDateSelected();
+        QMessageBox::information(this, "重生", "功德簿已烧毁，请大侠重新来过！");
+    }
 }
 
 void MainWindow::on_btn_week_report_clicked()
@@ -590,6 +842,16 @@ void MainWindow::on_btn_week_report_clicked()
     // 从界面的日历控件中，抓取用户当前选中的那天，赋值给 targetDate
     QDate targetDate = ui->calendarWidget->selectedDate();
     ui->textBrowser_ai->setText("正在翻阅本门过去七天的功德簿，等着...");
+
+    // 【新增：非阻塞式等待 2 秒】
+    // 1. 强制让界面立即把刚刚设置的文字刷新画出来
+    ui->textBrowser_ai->repaint();
+    // 2. 创建一个局部的事件循环盒子
+    QEventLoop loop;
+    // 3. 设置一个 2000 毫秒（2秒）后触发的单次定时器，时间到了就让这个盒子退出
+    QTimer::singleShot(2000, &loop, &QEventLoop::quit);
+    // 4. 让程序在这里停下，进入这个局部循环（此时界面不会卡死，依然能响应鼠标点击、拖动等）
+    loop.exec();
 
     QString allJsonData = "以下是本弟子最近七天的真实作息 JSON 数据：\n";
     int foundFiles = 0;

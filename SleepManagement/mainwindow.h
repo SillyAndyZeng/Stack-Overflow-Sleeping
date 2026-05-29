@@ -9,6 +9,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+// 为了实现工具菜单（清理工具）
+#include <QMenu>
+#include <QAction>
 
 /*
 这个头文件用来定义你的主窗口类里有哪些变量、有哪些函数。
@@ -44,7 +47,13 @@ private slots:
     // 新增：手动作息修改与手动保存生成的三个按钮槽函数
     void on_btn_edit_sleep_clicked();
     void on_btn_edit_wake_clicked();
-    void on_btn_save_report_clicked();
+    void on_btn_save_report_clicked(); //这个函数，和btn_wake_clicked应当等同
+    // 新增：手动设定通宵按钮，通宵不再仅仅依赖于点我起床时了的选项
+    void on_btn_set_nosleep_clicked();
+    // 【新增：清理数据的三个动作槽函数】不能用clicked
+    void on_action_clear_today_triggered();
+    void on_action_clear_range_triggered();
+    void on_action_clear_all_triggered();
 
 private:
     // 核心指针：指向由 .ui 文件编译生成的界面类对象。
@@ -61,6 +70,8 @@ private:
     // 核心封装函数，传入作息日和各项具体数据进行保存和弹窗
     // 不传入一个SleppAnalyzer对象的原因是，在哪里实例化呢
     void save_and_report(QDate recordDay, int s_hour, int s_min, int w_hour, int w_min, int nap, int exe, int sit);
+    // 【新增】统一刷新主界面成就显示的函数
+    void updateAchievementDisplay();
 };
 
 #endif // MAINWINDOW_H // 结束宏保护
