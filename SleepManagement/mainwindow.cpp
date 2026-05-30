@@ -242,7 +242,7 @@ void MainWindow::updateAchievementDisplay()
     }
 }
 
-// 🎓【新增辅助函数】动态读取界面上的时间，计算时长并显示
+// 🎓【新增辅助函数】动态读取界面上的时间，计算晚间睡眠时长并显示
 void MainWindow::updateDurationDisplay()
 {
     QString s_text = ui->lineEdit_sleep_disp->text();
@@ -253,7 +253,7 @@ void MainWindow::updateDurationDisplay()
         ui->lineEdit_duration_disp->setText("--:--");
         return;
     }
-    if (s_text == "修仙" || w_text == "修仙") {
+    if (s_text == "通宵" || w_text == "通宵") {
         ui->lineEdit_duration_disp->setText("00:00");
         return;
     }
@@ -322,6 +322,8 @@ void MainWindow::onCalendarDateSelected()
         ui->spinBox_sit->setValue(0);
         ui->lineEdit_sleep_disp->setText("未记录");
         ui->lineEdit_wake_disp->setText("未记录");
+        // 刷新晚间睡眠时长显示！
+        updateDurationDisplay();
         return;
     }
 
@@ -340,8 +342,8 @@ void MainWindow::onCalendarDateSelected()
     // 把读取到的入睡、起床、白天活动数据回填输入控件[cite: 43]
     // 通宵的晚上，起床和入睡时间会被设置为-1，具体见sleep_core.h
     if (s_h == -1 && w_h == -1) {
-        ui->lineEdit_sleep_disp->setText("修仙");
-        ui->lineEdit_wake_disp->setText("修仙");
+        ui->lineEdit_sleep_disp->setText("通宵");
+        ui->lineEdit_wake_disp->setText("通宵");
     } 
     //dyq 260529 2300添加 依旧是为了解决没有把数据读入日历
     else if (w_h == -2) {
