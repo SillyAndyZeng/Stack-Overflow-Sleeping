@@ -454,94 +454,8 @@ void MainWindow::on_btn_wake_clicked()
     ui->lineEdit_wake_disp->setText(currentTime.toString("HH:mm"));
     updateDurationDisplay(); // 刷新时长
 
-    /*
-    // 3. 开始通过 ui-> 指针，从界面上的各个控件中捞取用户输入的数据：
-    // 增加容错机制：假如没有点“我睡了”，或者没有手动填写入睡时间，此时timeEdit_sleep框为空（或者保留的是昨天的入睡时间），可能报错。
-    int s_hour = ui->timeEdit_sleep->time().hour();
-    int s_min  = ui->timeEdit_sleep->time().minute();
-    int w_hour = ui->timeEdit_wake->time().hour();
-    int w_min  = ui->timeEdit_wake->time().minute();
-    */
-    // 2. 从显示框里直接拿到要展示在弹窗里的字符串（比如 "08:30" 或 "通宵"）
-    QString s_text = ui->lineEdit_sleep_disp->text();
-    QString w_text = ui->lineEdit_wake_disp->text();
-
-    //起床时获得的“白天数据”是昨天（也就是确定的作息日）的数据
-    int nap = ui->spinBox_nap->value();           // 从界面上的午睡微调框中获取用户输入的午睡分钟数 
-    int exe = ui->spinBox_exercise->value();      // 从界面上的运动微调框中获取用户输入的运动分钟数
-    int sit = ui->spinBox_sit->value();           // 从界面上的久坐微调框中获取用户输入的久坐分钟数
-
-    // ==========================================
-    // 新增：防呆与容错机制
-    /*
-    // 组装带前导零的时间字符串（比如把 8:5 变成 08:05），看起来更专业
-    QString s_time_str = QString("%1:%2").arg(s_hour, 2, 10, QChar('0')).arg(s_min, 2, 10, QChar('0'));
-    QString w_time_str = QString("%1:%2").arg(w_hour, 2, 10, QChar('0')).arg(w_min, 2, 10, QChar('0'));
-    */
-
-    // 弹出一个带自定义按钮的确认对话框
-    QMessageBox msgBox(this);
-    msgBox.setWindowTitle("作息结算确认");
-    msgBox.setText(QString("系统读取到您的作息如下：\n\n🛌 入睡：%1\n🌅 起床：%2\n\n请确认时间是否准确？\n（若昨晚忘记点【准备入睡】，上方入睡时间可能不准）")
-                       .arg(s_text, w_text));
-    msgBox.setIcon(QMessageBox::Question);
-
-    // 添加三个自定义按钮，供用户选择，有两个需要记录值
-    // 不让通宵按钮和睡了觉的按钮同时出现
-    QPushButton *btnAllNight = nullptr;
-    //考虑了用户通宵的所有情况，不管点没点手动设置通宵，都能弹出这个按钮
-    if (s_text == "通宵" || w_text == "通宵" || s_text == "未记录" || w_text == "未记录"){
-        btnAllNight = msgBox.addButton("🔥 我通宵了，一分钟没睡", QMessageBox::ActionRole);
-    }
-    else{
-        msgBox.addButton("✅ 睡眠时间准确，直接结算", QMessageBox::AcceptRole);
-    }
-    QPushButton *btnCancel = msgBox.addButton("❌ 不准，我去手动改改时间或者设定通宵", QMessageBox::RejectRole);
-
-    msgBox.exec(); // 阻塞程序，等待用户在弹窗上做出点击选择
-
-    // 解析阶段：准备传给底层算法的变量
-    int s_hour = -1, s_min = -1, w_hour = -1, w_min = -1;
-
-    if (msgBox.clickedButton() == btnCancel) {
-        // 用户发现时间不对，点击了取消
-        return; // 直接 return 强行终止这个函数，不往下算分了，让用户回主界面手动调时间
-    }
-    // 如果点了通宵按钮
-    else if (msgBox.clickedButton() == btnAllNight) {
-        // 用户通宵了，强行把时间全部设为 -1
-        // 会触发你们 sleep_core.h 里构造函数的变量设置：noNightSleep = true
-        ui->lineEdit_sleep_disp->setText("通宵");
-        ui->lineEdit_wake_disp->setText("通宵");
-        updateDurationDisplay();
-        // 通宵时算法接收全是 -1 的变量，这里无需处理，因为上面声明的就是 -1
-    }
-    else{
-        // 正常结算：把刚才读到的文本转换回具体的时、分数字
-        if (s_text != "通宵" && s_text != "未记录" && !s_text.isEmpty()) {
-            QTime s_t = QTime::fromString(s_text, "HH:mm");
-            s_hour = s_t.hour(); s_min = s_t.minute();
-        }
-        if (w_text != "通宵" && w_text != "未记录" && !w_text.isEmpty()) {
-            QTime w_t = QTime::fromString(w_text, "HH:mm");
-            w_hour = w_t.hour(); w_min = w_t.minute();
-        }
-    }
-
-    //根据入睡时间计算作息日，一般来讲是起床时的前一天；
-    QDate recordDay = QDate::currentDate().addDays(-1);
-    //极特殊情况当晚睡当晚起，回到当天
-    if (s_hour > 12 && w_hour > s_hour)
-        recordDay = recordDay.addDays(1);
-    QDate selectedDate = ui->calendarWidget->selectedDate();
-    // 默认情况下日历选中的是当前日期。如果当前日期（也就是作息日的下一天）不等于日历日期，说明没有在记录今天的睡眠，而是选中了日历上别的日期，在记录特定日期的睡眠
-    // 这样的情况下作息日就是被选中的日期
-    // 还得让非当日时，入睡和起床按钮不能点击
-    if (selectedDate != recordDay.addDays(1))
-        recordDay = selectedDate;
-
-    // 6. 发射！
-    save_and_report(recordDay, s_hour, s_min, w_hour, w_min, nap, exe, sit);
+    // 现在在on_btn_save_report_clicked函数的函数体，原本就在这个地方
+    MainWindow::on_btn_save_report_clicked();
 }
 
 //手动修改入睡和起床时间的按钮：btn_edit_sleep和btn_edit_wake，调用了QDialog
@@ -689,43 +603,89 @@ void MainWindow::save_and_report(QDate recordDay, int s_hour, int s_min, int w_h
 void MainWindow::on_btn_save_report_clicked()
 {
     // 不用玩那么多花的，其功能和我起床了按钮没有任何区别
-    MainWindow::on_btn_wake_clicked();
-    /*
-    // 1. 获取当前日历上选中的那一天作为归属作息日
-    QDate recordDay = ui->calendarWidget->selectedDate();
-
-    // 2. 准备底层需要的变量，默认全为 -1（应对通宵情况）
-    int s_hour = -1, s_min = -1, w_hour = -1, w_min = -1;
-
+    // 好吧，还是有点区别，手动编辑后不能把当前时间扒下来放进起床时间里
+    // 何不换个思路，在btn_wake_clicked里，起床时间更新之后，调用这个函数呢
+    
+    // 2. 从显示框里直接拿到要展示在弹窗里的字符串（比如 "08:30" 或 "通宵"）
     QString s_text = ui->lineEdit_sleep_disp->text();
     QString w_text = ui->lineEdit_wake_disp->text();
 
-    // 增加容错拦截：如果没写完整时间，不让生成报告
-    if ((s_text == "未记录" || s_text.isEmpty()) || (w_text == "未记录" || w_text.isEmpty())) {
-        QMessageBox::warning(this, "提示", "数据未填写完整，无法生成报告！\n请先点击上方的修改按钮补齐入睡和起床时间。");
-        return;
-    }
+    //起床时获得的“白天数据”是昨天（也就是确定的作息日）的数据
+    int nap = ui->spinBox_nap->value();           // 从界面上的午睡微调框中获取用户输入的午睡分钟数 
+    int exe = ui->spinBox_exercise->value();      // 从界面上的运动微调框中获取用户输入的运动分钟数
+    int sit = ui->spinBox_sit->value();           // 从界面上的久坐微调框中获取用户输入的久坐分钟数
 
-    // 3. 将界面上的纯文本解析回时、分数字
-    if (s_text != "通宵") {
-        QTime s_t = QTime::fromString(s_text, "HH:mm");
-        s_hour = s_t.hour();
-        s_min = s_t.minute();
-    }
-    if (w_text != "通宵") {
-        QTime w_t = QTime::fromString(w_text, "HH:mm");
-        w_hour = w_t.hour();
-        w_min = w_t.minute();
-    }
-
-    // 4. 读取白天的微调框数据
-    int nap = ui->spinBox_nap->value();
-    int exe = ui->spinBox_exercise->value();
-    int sit = ui->spinBox_sit->value();
-
-    // 5. 呼叫我们之前封装好的辅助函数，带走所有保存、刷新、弹窗逻辑
-    save_and_report(recordDay, s_hour, s_min, w_hour, w_min, nap, exe, sit);
+    // ==========================================
+    // 新增：防呆与容错机制
+    /*
+    // 组装带前导零的时间字符串（比如把 8:5 变成 08:05），看起来更专业
+    QString s_time_str = QString("%1:%2").arg(s_hour, 2, 10, QChar('0')).arg(s_min, 2, 10, QChar('0'));
+    QString w_time_str = QString("%1:%2").arg(w_hour, 2, 10, QChar('0')).arg(w_min, 2, 10, QChar('0'));
     */
+
+    // 弹出一个带自定义按钮的确认对话框
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle("作息结算确认");
+    msgBox.setText(QString("系统读取到您的作息如下：\n\n🛌 入睡：%1\n🌅 起床：%2\n\n请确认时间是否准确？\n（若昨晚忘记点【准备入睡】，上方入睡时间可能不准）")
+                       .arg(s_text, w_text));
+    msgBox.setIcon(QMessageBox::Question);
+
+    // 添加三个自定义按钮，供用户选择，有两个需要记录值
+    // 不让通宵按钮和睡了觉的按钮同时出现
+    QPushButton *btnAllNight = nullptr;
+    //考虑了用户通宵的所有情况，不管点没点手动设置通宵，都能弹出这个按钮
+    if (s_text == "通宵" || w_text == "通宵" || s_text == "未记录" || w_text == "未记录"){
+        btnAllNight = msgBox.addButton("🔥 我通宵了，一分钟没睡", QMessageBox::ActionRole);
+    }
+    else{
+        msgBox.addButton("✅ 睡眠时间准确，直接结算", QMessageBox::AcceptRole);
+    }
+    QPushButton *btnCancel = msgBox.addButton("❌ 不准，我去手动改改时间或者设定通宵", QMessageBox::RejectRole);
+
+    msgBox.exec(); // 阻塞程序，等待用户在弹窗上做出点击选择
+
+    // 解析阶段：准备传给底层算法的变量
+    int s_hour = -1, s_min = -1, w_hour = -1, w_min = -1;
+
+    if (msgBox.clickedButton() == btnCancel) {
+        // 用户发现时间不对，点击了取消
+        return; // 直接 return 强行终止这个函数，不往下算分了，让用户回主界面手动调时间
+    }
+    // 如果点了通宵按钮
+    else if (msgBox.clickedButton() == btnAllNight) {
+        // 用户通宵了，强行把时间全部设为 -1
+        // 会触发你们 sleep_core.h 里构造函数的变量设置：noNightSleep = true
+        ui->lineEdit_sleep_disp->setText("通宵");
+        ui->lineEdit_wake_disp->setText("通宵");
+        updateDurationDisplay();
+        // 通宵时算法接收全是 -1 的变量，这里无需处理，因为上面声明的就是 -1
+    }
+    else{
+        // 正常结算：把刚才读到的文本转换回具体的时、分数字
+        if (s_text != "通宵" && s_text != "未记录" && !s_text.isEmpty()) {
+            QTime s_t = QTime::fromString(s_text, "HH:mm");
+            s_hour = s_t.hour(); s_min = s_t.minute();
+        }
+        if (w_text != "通宵" && w_text != "未记录" && !w_text.isEmpty()) {
+            QTime w_t = QTime::fromString(w_text, "HH:mm");
+            w_hour = w_t.hour(); w_min = w_t.minute();
+        }
+    }
+
+    //根据入睡时间计算作息日，一般来讲是起床时的前一天；
+    QDate recordDay = QDate::currentDate().addDays(-1);
+    //极特殊情况当晚睡当晚起，回到当天
+    if (s_hour > 12 && w_hour > s_hour)
+        recordDay = recordDay.addDays(1);
+    QDate selectedDate = ui->calendarWidget->selectedDate();
+    // 默认情况下日历选中的是当前日期。如果当前日期（也就是作息日的下一天）不等于日历日期，说明没有在记录今天的睡眠，而是选中了日历上别的日期，在记录特定日期的睡眠
+    // 这样的情况下作息日就是被选中的日期
+    // 还得让非当日时，入睡和起床按钮不能点击
+    if (selectedDate != recordDay.addDays(1))
+        recordDay = selectedDate;
+
+    // 6. 发射！
+    save_and_report(recordDay, s_hour, s_min, w_hour, w_min, nap, exe, sit);
 }
 
 // ==========================================
