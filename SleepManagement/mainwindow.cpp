@@ -660,9 +660,16 @@ void MainWindow::save_and_report(QDate recordDay, int s_hour, int s_min, int w_h
     std::string dateStdStr = recordDay.toString("yyyy-MM-dd").toStdString();
     std::string jsonPayload = SleepJsonExporter::toJsonString(todayData, dateStdStr);
     //存本地，修正了存储路径
-    std::string fullPath = (dataDir() + "/" + QString::fromStdString(dateStdStr) + ".json").toStdString();
-    SleepJsonExporter::saveToFile(jsonPayload, fullPath);
-
+    //新增260530 11：00 改写了路径，防止windows用户名是中文无法访问
+    QString fullPath = dataDir() + "/" + recordDay.toString("yyyy-MM-dd") + ".json";
+    QFile outFile(fullPath);
+    if (outFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        outFile.write(QString::fromStdString(jsonPayload).toUtf8());
+        outFile.close();
+    } else {
+        QMessageBox::warning(this, "保存失败", "无法写入文件：\n" + fullPath);  // 以后再失败会有提示，不再静默
+    }
+//
     refreshCalendarColors();  // 刚保存的作息日立刻染色
     checkAndShowAchievements();  // 检查是否达成里程碑
     updateAchievementDisplay(); // 实时联动成就的显示
