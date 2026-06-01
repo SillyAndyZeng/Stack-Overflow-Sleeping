@@ -3,6 +3,9 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QMainWindow>
+#include <QCloseEvent>
+#include <QPushButton>
+#include <QGraphicsOpacityEffect>
 // 新增：引入网络和JSON相关的头文件
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -12,6 +15,10 @@
 // 为了实现工具菜单（清理工具）
 #include <QMenu>
 #include <QAction>
+
+// 前置声明
+class NotificationManager;
+class KeyMonitor;
 
 /*
 这个头文件用来定义你的主窗口类里有哪些变量、有哪些函数。
@@ -50,10 +57,22 @@ private slots:
     void on_btn_save_report_clicked(); //这个函数，和btn_wake_clicked应当等同
     // 新增：手动设定通宵按钮，通宵不再仅仅依赖于点我起床时了的选项
     void on_btn_set_nosleep_clicked();
+    // 【新增：打开可视化图表窗口】
+    void on_btn_show_chart_clicked();
+    // 【新增：打开用户设置窗口】
+    void on_btn_settings_clicked();
+    // 【新增：打开键盘活跃度分析】
+    void on_btn_keyboard_clicked();
     // 【新增：清理数据的三个动作槽函数】不能用clicked
     void on_action_clear_today_triggered();
     void on_action_clear_range_triggered();
     void on_action_clear_all_triggered();
+    // 【新增：导出 AI 分析结果为 PDF】
+    void on_btn_export_pdf_clicked();
+
+protected:
+    // 【新增：拦截关闭事件，最小化到系统托盘】
+    void closeEvent(QCloseEvent *event) override;
 
 private:
     // 核心指针：指向由 .ui 文件编译生成的界面类对象。
@@ -61,6 +80,12 @@ private:
     Ui::MainWindow *ui;
     // 新增：这是一个专门负责发 HTTP 请求的“邮递员”
     QNetworkAccessManager *networkManager;
+    // 【新增：系统托盘与气泡提醒管理器】
+    NotificationManager *m_notificationMgr;
+    // 【新增：键盘敲击频率监测】
+    KeyMonitor *m_keyMonitor;
+    // 【新增】显示区域透明度动效用
+    QList<QGraphicsOpacityEffect*> m_displayEffects;
     // 新增：告诉编译器有这几个私有辅助函数
     QString dataDir();
     void refreshCalendarColors();
@@ -72,6 +97,12 @@ private:
     void save_and_report(QDate recordDay, int s_hour, int s_min, int w_hour, int w_min, int nap, int exe, int sit);
     // 【新增】统一刷新主界面成就显示的函数
     void updateAchievementDisplay();
+    // 【新增】按钮缩放动效
+    void pulseButton(QPushButton *btn);
+    // 【新增】欢迎说明书弹窗（force = true 忽略"不再显示"设置）
+    void showWelcomeDialog(bool force = false);
+    // 【新增】生成说明书 HTML 内容
+    static QString buildManualHtml();
 };
 
 #endif // MAINWINDOW_H // 结束宏保护

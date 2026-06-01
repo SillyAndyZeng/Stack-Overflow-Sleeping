@@ -8,6 +8,7 @@
 #include <QString>
 #include <sstream>
 #include <fstream>
+#include <algorithm>
 #include <QTime>
 
 /*
@@ -35,10 +36,10 @@
 #define daysleep_rewardScore 1
 #define daysleep_judgethreshold 15
 #define daySpiltHour 6
-int stayupBegin = 24;
-int stayupEnd = 8;
-int generalSleep_hour = 23; // 一般入睡时间，初始化23
-int generalWake_hour = 8;
+inline int stayupBegin = 0;
+inline int stayupEnd = 8;
+inline int generalSleep_hour = 23; // 一般入睡时间，初始化23
+inline int generalWake_hour = 8;
 using namespace std;
 
 //作息日计算函数
@@ -82,6 +83,11 @@ public:
     SleepAnalyzer(int d1 = -1, int d2 = -1, int d3 = -1, int d4 = -1, int d5 = 0, int d6 = 0, int d7 = 0)
         : SleepData(d1, d2, d3, d4, d5, d6, d7) {
         if (d1 == -1) noNightSleep = true;
+        // 输入钳位：对合法数值做范围限制，防止异常数据传入算法
+        if (Sleep_hour >= 0 && Sleep_hour != -2) Sleep_hour = std::clamp(Sleep_hour, 0, 23);
+        if (Sleep_min  >= 0 && Sleep_min  != -2) Sleep_min  = std::clamp(Sleep_min,  0, 59);
+        if (Wake_hour  >= 0 && Wake_hour  != -2) Wake_hour  = std::clamp(Wake_hour,  0, 23);
+        if (Wake_min   >= 0 && Wake_min   != -2) Wake_min   = std::clamp(Wake_min,   0, 59);
     }
 
     int calculateNightSleep() {  //计算晚上睡眠时间：[一般睡觉时间提前2h, 一般起床时间延后2h]之间的时间段
