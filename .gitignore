@@ -1,4 +1,4 @@
-SleepManagement/build/
+build/
 SleepManagement/.qtcreator/
 *.user*
 .DS_Store

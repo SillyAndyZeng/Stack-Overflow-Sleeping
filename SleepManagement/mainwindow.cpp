@@ -2,6 +2,11 @@
 #include "ui_mainwindow.h"  //引入由 mainwindow.ui 编译生成的底层界面头文件，不引它就无法通过 ui-> 指针访问控件
 #include "achievement_manager.h"
 #include "sleep_core.h"       // 算分引擎
+#include "sleep_charts.h"     // 可视化图表
+#include "settings_dialog.h"  // 用户自定义设置
+#include "notification_manager.h" // 系统托盘与通知
+#include "key_monitor.h"      // 键盘敲击监测
+#include "keyboard_chart.h"   // 键盘活跃度图表
 #include <QMessageBox>        // 引入 Qt 官方的弹窗对话框类，用于实现各种警告、信息提示弹窗
 #include <QTime>              // 抓取系统时间
 #include <QDate>              // 处理日历日期
@@ -11,13 +16,23 @@
 #include <QCalendarWidget>  // 引入日历控件的类声明
 #include <QFile>
 #include <QDir>
+#include <QPropertyAnimation> // 按钮动效
+#include <QParallelAnimationGroup> // 日历淡入动画组
 #include <QDialog>
 #include <QVBoxLayout>
 #include <QDialogButtonBox> // 美化的手动编辑时间窗口
 #include <QFormLayout> // 菜单相关
-//用于非阻塞（非sleep式）的停顿
+#include <QTextBrowser>
+#include <QCheckBox>
+// 用于非阻塞（非sleep式）的停顿
 #include <QEventLoop>
 #include <QTimer>
+// 用于 PDF 导出
+#include <QTextDocument>
+#include <QPrinter>
+#include <QPageSize>
+#include <QPageLayout>
+#include <QFileDialog>
 
 /*
 当界面上的按钮被点击时，具体要做什么计算、弹出什么提示，全部写在这里。
@@ -76,11 +91,29 @@ MainWindow::MainWindow(QWidget *parent)
     ui->lineEdit_duration_disp->setReadOnly(true);
     ui->lineEdit_selected_date->setReadOnly(true);
 
+    // SpinBox 数值范围限制（防呆）
+    ui->spinBox_nap->setRange(0, 480);      // 午睡上限 8 小时
+    ui->spinBox_exercise->setRange(0, 480); // 运动上限 8 小时
+    ui->spinBox_sit->setRange(0, 1440);     // 久坐上限 24 小时
+    ui->spinBox_nap->setSuffix(" 分钟");
+    ui->spinBox_exercise->setSuffix(" 分钟");
+    ui->spinBox_sit->setSuffix(" 分钟");
     // 默认隐藏历史修改按钮（只有点选过去的日子才展示）
     ui->btn_edit_sleep->setVisible(false);
     ui->btn_edit_wake->setVisible(false);
     // 默认隐藏手动保存按钮
     // ui->btn_save_report->setVisible(false);
+
+    // 添加"？"帮助按钮
+    auto *btnHelp = new QPushButton("?", this);
+    btnHelp->setObjectName("btn_help");
+    btnHelp->setFixedSize(28, 28);
+    btnHelp->move(440, 16);
+    btnHelp->setStyleSheet(
+        "QPushButton { background-color: #E0E0E0; color: #555; border-radius: 14px; "
+        "font-size: 16px; font-weight: bold; border: none; }"
+        "QPushButton:hover { background-color: #4D96FF; color: white; }");
+    connect(btnHelp, &QPushButton::clicked, this, [this]() { showWelcomeDialog(true); });
 
     refreshCalendarColors();//新增:启动时加载历史颜色
     updateAchievementDisplay(); // 启动时加载并显示成就
@@ -132,11 +165,257 @@ MainWindow::MainWindow(QWidget *parent)
     // 让布局里的元素都靠上对齐，不要散开
     legendLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     // ==========================================================
+
+    // ==========================================================
+    // 【新增：PDF 导出按钮】放在 AI 文本框下方
+    auto *btnExportPdf = new QPushButton("📄 导出 PDF", this);
+    btnExportPdf->setObjectName("btn_export_pdf");
+    btnExportPdf->setGeometry(740, 635, 101, 28);
+    btnExportPdf->setStyleSheet(
+        "QPushButton { background-color: #E8F0FE; color: #1A73E8; border: 1px solid #1A73E8; "
+        "border-radius: 6px; font-size: 12px; font-weight: bold; }"
+        "QPushButton:hover { background-color: #D2E3FC; }");
+    connect(btnExportPdf, &QPushButton::clicked, this, &MainWindow::on_btn_export_pdf_clicked);
+    // ==========================================================
+    // 【启动时加载用户配置】
+    QString cfgPath = dataDir() + "/config.json";
+    QJsonObject userCfg = loadUserConfig(cfgPath);
+    applyUserConfig(userCfg);
+    // ==========================================================
+
+    // ==========================================================
+    // 【初始化系统托盘与气泡通知】
+    m_notificationMgr = new NotificationManager(this);
+    connect(m_notificationMgr, &NotificationManager::requestShowWindow, this, [this]() {
+        showNormal();
+        activateWindow();
+        raise();
+        showWelcomeDialog();  // 从托盘恢复时按 config 决定是否弹窗
+    });
+    m_notificationMgr->startMonitoring();
+    // ==========================================================
+
+    // ==========================================================
+    // 【初始化键盘敲击频率监测】
+    m_keyMonitor = new KeyMonitor(this);
+    m_keyMonitor->startMonitoring();
+    // ==========================================================
+
+    // ==========================================================
+    // 【设置显示区域透明度动效】（日历切换时淡入淡出）
+    auto setupFade = [&](QWidget *w) {
+        auto *effect = new QGraphicsOpacityEffect(this);
+        effect->setOpacity(1.0);
+        w->setGraphicsEffect(effect);
+        m_displayEffects.append(effect);
+    };
+    setupFade(ui->lineEdit_selected_date);
+    setupFade(ui->lineEdit_sleep_disp);
+    setupFade(ui->lineEdit_wake_disp);
+    setupFade(ui->lineEdit_duration_disp);
+    setupFade(ui->spinBox_nap);
+    setupFade(ui->spinBox_exercise);
+    setupFade(ui->spinBox_sit);
+    // ==========================================================
+
+    // 启动时强制显示欢迎说明书（首次启动必弹）
+    showWelcomeDialog(true);
 }
 MainWindow::~MainWindow()
 {
     delete ui; //析构函数的具体实现：回收在构造函数中 new 出来的 ui 指针占用的内存，防止内存泄漏
 }
+
+// ==========================================
+// 欢迎说明书弹窗
+// ==========================================
+void MainWindow::showWelcomeDialog(bool force)
+{
+    // 检查是否已勾选"不再显示"（force 为 true 时忽略该设置）
+    QString cfgPath = dataDir() + "/config.json";
+    QJsonObject cfg = loadUserConfig(cfgPath);
+    if (!force && !cfg["show_welcome"].toBool(true)) return;
+
+    QDialog dialog(this);
+    dialog.setWindowTitle("📖 睡眠守护 · 用户说明书");
+    dialog.setMinimumSize(620, 520);
+    dialog.resize(680, 560);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(16, 12, 16, 12);
+
+    auto *browser = new QTextBrowser(&dialog);
+    browser->setOpenExternalLinks(true);
+    browser->setHtml(buildManualHtml());
+    browser->setStyleSheet(
+        "QTextBrowser { background-color: #FAFAFA; border: 1px solid #E0E0E0; "
+        "border-radius: 8px; padding: 12px; font-size: 14px; line-height: 1.6; }");
+    layout->addWidget(browser, 1);
+
+    // 底部：勾选框 + 关闭按钮
+    auto *bottomBar = new QHBoxLayout();
+    auto *dontShowAgain = new QCheckBox("不再显示此欢迎页（可在设置区点击 ? 重新打开）", &dialog);
+    dontShowAgain->setStyleSheet("font-size: 12px; color: #888;");
+    bottomBar->addWidget(dontShowAgain);
+    bottomBar->addStretch();
+
+    auto *closeBtn = new QPushButton("开始使用", &dialog);
+    closeBtn->setFixedSize(110, 32);
+    closeBtn->setStyleSheet(
+        "QPushButton { background-color: #4D96FF; color: white; border-radius: 6px; "
+        "font-size: 13px; font-weight: bold; border: none; }"
+        "QPushButton:hover { background-color: #3A7BD5; }");
+    connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
+    bottomBar->addWidget(closeBtn);
+    layout->addLayout(bottomBar);
+
+    dialog.exec();
+
+    cfg["show_welcome"] = !dontShowAgain->isChecked();
+    saveUserConfig(cfgPath, cfg);
+}
+
+// ==========================================
+// 说明书 HTML 内容
+// ==========================================
+QString MainWindow::buildManualHtml()
+{
+    return QStringLiteral(R"(
+<h2 style='text-align:center;color:#4D96FF;'>🌙 睡眠守护 · 用户说明书</h2>
+<hr>
+
+<h3 style='color:#333;'>一、软件概述</h3>
+<p>睡眠守护是一款面向大学生群体的作息健康管理工具，由 <b>Stack Overflow</b> 小组（王晨瑜、董弈齐、曾梓航）开发。它帮助您记录每日作息、生成健康评分与趣味称号，并提供周报分析、键盘注意力监测等进阶功能。</p>
+
+<h3 style='color:#333;'>二、安装与运行</h3>
+<ul>
+<li><b>编译环境</b>：Qt 6.5+，CMake 3.19+，C++17 编译器</li>
+<li><b>构建步骤</b>：<code>cmake -B build && cmake --build build</code></li>
+<li><b>macOS 权限</b>：键盘监测功能需要授予「输入监控」权限（系统设置 → 隐私与安全性 → 输入监控）</li>
+</ul>
+
+<h3 style='color:#333;'>三、界面导览</h3>
+<ul>
+<li><b>📅 左侧日历</b>：点击任意日期查看历史作息，不同颜色标记当日状态</li>
+<li><b>🛌 中部打卡区</b>：「准备入睡」和「我醒了」两大核心按钮</li>
+<li><b>📊 右侧数据区</b>：午睡/运动/久坐输入框、周报与 AI 分析面板</li>
+<li><b>🔧 顶部工具栏</b>：设置、键盘监测、数据清理、帮助（?）</li>
+</ul>
+
+<h3 style='color:#333;'>四、每日打卡流程</h3>
+<ol>
+<li>晚上准备睡觉时，点击<b>「准备入睡」</b>按钮，系统自动记录当前时间为入睡时间</li>
+<li>第二天早上醒来，点击<b>「我醒了」</b>按钮，系统记录起床时间</li>
+<li>在弹出的确认框中，核对入睡/起床时间是否准确</li>
+<li>填写午睡时长、运动时长、久坐时长等白天数据</li>
+<li>点击<b>「保存并生成简报」</b>，系统自动计算睡眠评分并弹出日结报告</li>
+</ol>
+
+<h3 style='color:#333;'>五、手动编辑与补录</h3>
+<p>点击日历上<b>过去的日期</b>，右侧会显示该日数据。「修改入睡时间」和「修改起床时间」按钮变为可用，点击后可在弹窗中精确调整时间。</p>
+<p>如果某天通宵未睡，可点击<b>「通宵」</b>按钮进行标记。</p>
+
+<h3 style='color:#333;'>六、周报与 AI 分析</h3>
+<p>点击<b>「周报生成」</b>按钮，系统会读取近 7 天数据进行综合分析：</p>
+<ul>
+<li><b>本地模式</b>：无需网络，调用内置算法生成文字周报</li>
+<li><b>AI 模式</b>：在输入框中填入 DeepSeek API Key（以 <code>sk-</code> 开头），系统将数据发送给大模型，生成毒舌修仙风格的分析报告</li>
+</ul>
+
+<h3 style='color:#333;'>七、图表可视化</h3>
+<p>点击<b>「图表」</b>按钮，弹出可视化窗口：</p>
+<ul>
+<li><b>📊 睡眠时长柱状图</b>：展示近 7 天每日睡眠时长（含午睡叠加），附带 7-8 小时推荐参考线</li>
+<li><b>📈 评分趋势折线图</b>：展示每日睡眠评分（-5 ~ 3）的变化趋势</li>
+</ul>
+
+<h3 style='color:#333;'>八、键盘活跃度监测</h3>
+<p>点击<b>「键盘」</b>按钮打开键盘活跃度分析窗口。程序在后台实时记录每分钟敲击次数，生成注意力曲线柱状图。数据保留最近 8 小时，绿色=低活跃，黄色=中活跃，红色=高活跃。</p>
+
+<h3 style='color:#333;'>九、系统托盘与通知</h3>
+<ul>
+<li>点击窗口关闭按钮会<b>最小化到系统托盘</b>而非退出程序</li>
+<li>托盘图标右键可「显示主窗口」或「退出程序」</li>
+<li>凌晨 2:00 ~ 6:00 期间未记录入睡，系统会自动弹出<b>深夜提醒</b>气泡通知</li>
+<li>点击<b>「设置」</b>可调整常规入睡/起床时间、熬夜判定区间</li>
+</ul>
+
+<h3 style='color:#333;'>十、日历颜色说明</h3>
+<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;width:100%;font-size:13px;'>
+<tr><th>颜色</th><th>含义</th></tr>
+<tr><td style='background:#FF6B6B;color:white;text-align:center;'>红</td><td>通宵熬夜，整夜未眠</td></tr>
+<tr><td style='background:#FF8C00;color:white;text-align:center;'>深橙</td><td>熬夜 + 久坐/运动不足</td></tr>
+<tr><td style='background:#FFB347;text-align:center;'>橙</td><td>久坐超标或运动不足</td></tr>
+<tr><td style='background:#FFD93D;text-align:center;'>黄</td><td>熬夜</td></tr>
+<tr><td style='background:#C8A2C8;text-align:center;'>紫</td><td>睡懒觉（起床过晚）</td></tr>
+<tr><td style='background:#6BCB77;text-align:center;'>绿</td><td>睡眠充足（评分 ≥ 3）</td></tr>
+<tr><td style='background:#4D96FF;color:white;text-align:center;'>蓝</td><td>正常记录</td></tr>
+</table>
+
+<h3 style='color:#333;'>十一、数据管理</h3>
+<ul>
+<li><b>清空当前日期</b>：删除日历上选中那天的数据</li>
+<li><b>清空指定区间</b>：选择起始和结束日期，批量删除</li>
+<li><b>清空全部数据</b>：一键重置所有作息记录</li>
+<li>数据以 JSON 格式存储在系统应用数据目录下</li>
+</ul>
+
+<h3 style='color:#333;'>十二、成就系统</h3>
+<ul>
+<li>连续打卡 7 天、30 天解锁规律作息勋章</li>
+<li>连续早睡 3 天、7 天解锁早睡勋章</li>
+<li>达成成就时弹出提示并播放音效</li>
+</ul>
+
+<h3 style='color:#333;'>十三、常见问题</h3>
+<p><b>Q：为什么键盘监测没有反应？</b><br>
+A：macOS 需要在「系统设置 → 隐私与安全性 → 输入监控」中授予权限。</p>
+<p><b>Q：为什么 AI 周报告失败？</b><br>
+A：请检查 API Key 是否以 <code>sk-</code> 开头且余额充足，网络请求有 15 秒超时限制。</p>
+<p><b>Q：数据存在哪里？</b><br>
+A：存储在系统应用数据目录（<code>QStandardPaths::AppDataLocation</code>）下的 <code>.json</code> 文件中，以日期命名。</p>
+
+<hr>
+<p style='text-align:center;color:#999;font-size:12px;'>Stack Overflow · 大学生健康作息管理系统 · 课程设计作品</p>
+)");
+}
+
+
+// ==========================================
+// 关闭窗口 → 最小化到系统托盘
+// ==========================================
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (m_notificationMgr) {
+        hide();
+        m_notificationMgr->showGenericNotification("💤 睡眠守护",
+            "程序已最小化到系统托盘，守护仍在继续～");
+        event->ignore(); // 不真正关闭
+    } else {
+        // 如果还没初始化好，正常关闭
+        event->accept();
+    }
+}
+
+// ==========================================
+// 按钮缩放动效（脉冲动画）
+// ==========================================
+void MainWindow::pulseButton(QPushButton *btn)
+{
+    if (!btn) return;
+    QRect orig = btn->geometry();
+    // 向四周各扩大 6px
+    QRect expanded = orig.adjusted(-6, -6, 6, 6);
+
+    auto *anim = new QPropertyAnimation(btn, "geometry", this);
+    anim->setDuration(180);
+    anim->setStartValue(orig);
+    anim->setKeyValueAt(0.5, expanded);
+    anim->setEndValue(orig);
+    anim->setEasingCurve(QEasingCurve::OutBack);
+    anim->start(QAbstractAnimation::DeleteWhenStopped);
+}
+
 QString MainWindow::dataDir()//将文件存到固定的应用数据目录
 {
     QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
@@ -186,12 +465,13 @@ void MainWindow::refreshCalendarColors()
 
         // 使用十六进制数表示RGB颜色
         QColor bgColor;
-        if (noNightSleep)  bgColor = QColor(0xFF6B6B); // 红：熬穿
-        else if (stayUp)        bgColor = QColor(0xFFD93D); // 黄：熬夜
-        else if (oversleep)     bgColor = QColor(0xC8A2C8); // 紫：睡懒觉
-        else if (sit > 360 || exe < 30)     bgColor = QColor(0xFFB347); // 橙：久坐超标或者运动不足
-        else if (score >= 3)    bgColor = QColor(0x6BCB77); // 绿：睡眠良好
-        else                    bgColor = QColor(0x4D96FF); // 蓝：正常
+        if (noNightSleep)                          bgColor = QColor(0xFF6B6B); // 红：熬穿
+        else if (stayUp && (sit > 360 || exe < 30)) bgColor = QColor(0xFF8C00); // 深橙：熬夜+久坐/运动不足
+        else if (sit > 360 || exe < 30)             bgColor = QColor(0xFFB347); // 橙：久坐/运动不足
+        else if (stayUp)                            bgColor = QColor(0xFFD93D); // 黄：熬夜
+        else if (oversleep)                         bgColor = QColor(0xC8A2C8); // 紫：懒觉
+        else if (score >= 3)                        bgColor = QColor(0x6BCB77); // 绿：良好
+        else                                        bgColor = QColor(0x4D96FF); // 蓝：正常
 
         fmt.setBackground(QBrush(bgColor)); //显式用 QBrush
         fmt.setForeground(QBrush(Qt::black)); //设置前景色(文字颜色)作为保底，保证文字可读
@@ -216,9 +496,11 @@ void MainWindow::checkAndShowAchievements()
     bool isMilestone = (ci == 7 || ci == 30 || es == 3 || es == 7);
     if (!isMilestone) return;
 
-    QMessageBox::information(this, "🎖 成就解锁！",
-                             QString("恭喜解锁新成就：\n\n%1\n\n连续打卡 %2 天 · 连续早睡 %3 天\n\n继续保持！")
-                                 .arg(badge).arg(ci).arg(es));
+    m_notificationMgr->playAchievement(); // 成就音效
+    QString msg = QString("恭喜解锁新成就：\n\n%1\n\n连续打卡 %2 天 · 连续早睡 %3 天\n\n继续保持！")
+                      .arg(badge).arg(ci).arg(es);
+    QMessageBox::information(this, "🎖 成就解锁！", msg);
+    m_notificationMgr->showAchievementNotification(badge);
 }
 
 // ==========================================
@@ -363,6 +645,21 @@ void MainWindow::onCalendarDateSelected()
 
     // 刷新晚间睡眠时长显示！
     updateDurationDisplay();
+
+    // ★ 日历切换数据：淡入刷新动效（透明度回弹脉冲）
+    if (!m_displayEffects.isEmpty()) {
+        auto *group = new QParallelAnimationGroup(this);
+        for (auto *effect : m_displayEffects) {
+            auto *anim = new QPropertyAnimation(effect, "opacity", this);
+            anim->setDuration(300);
+            anim->setStartValue(1.0);
+            anim->setKeyValueAt(0.4, 0.3);
+            anim->setEndValue(1.0);
+            anim->setEasingCurve(QEasingCurve::OutQuad);
+            group->addAnimation(anim);
+        }
+        group->start(QAbstractAnimation::DeleteWhenStopped);
+    }
 }
 
 // ==========================================
@@ -394,6 +691,10 @@ void MainWindow::on_btn_set_nosleep_clicked(){
 // ==========================================
 void MainWindow::on_btn_sleep_clicked()
 {
+    // 0. 按钮动效 + 音效
+    pulseButton(ui->btn_sleep);
+    m_notificationMgr->playButtonClick();
+
     // 1. 获取当前系统的精确时间（时、分、秒）
     QTime currentTime = QTime::currentTime();
     ui->lineEdit_sleep_disp->setText(currentTime.toString("HH:mm"));
@@ -427,20 +728,28 @@ void MainWindow::on_btn_sleep_clicked()
     // ui->btn_sleep->setEnabled(false); // 没必要
 
     // 在弹窗之前，立即把入睡时间持久化到磁盘 dyq 260529晚2300添加
-    // 作息日是今天（入睡时还没到起床，作息日归今天）
+    // 直接写最小化JSON，不走SleepJsonExporter算分管道（避免-2占位符扰乱计算）
     QDate sleepDay = getSleepDay(QDateTime::currentDateTime());
-    SleepAnalyzer partialData(
-        currentTime.hour(), currentTime.minute(),
-        -2, -2,  // -2 = 尚未起床的占位符
-        0, 0, 0
-    );
-    std::string dateStdStr = sleepDay.toString("yyyy-MM-dd").toStdString();
-    std::string jsonPayload = SleepJsonExporter::toJsonString(partialData, dateStdStr);
-    std::string fullPath = (dataDir() + "/" + QString::fromStdString(dateStdStr) + ".json").toStdString();
-    SleepJsonExporter::saveToFile(jsonPayload, fullPath);//dyq 260529晚2300添加
+    QString dateStr = sleepDay.toString("yyyy-MM-dd");
+    QJsonObject partialObj;
+    partialObj["date"]          = dateStr;
+    partialObj["sleep_hour"]    = currentTime.hour();
+    partialObj["sleep_min"]     = currentTime.minute();
+    partialObj["wake_hour"]     = -2;
+    partialObj["wake_min"]      = -2;
+    partialObj["day_sleep_min"] = 0;
+    partialObj["exercise_min"]  = 0;
+    partialObj["sit_min"]       = 0;
+    QString fullPath = dataDir() + "/" + dateStr + ".json";
+    QFile partialFile(fullPath);
+    if (partialFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        partialFile.write(QJsonDocument(partialObj).toJson(QJsonDocument::Indented));
+        partialFile.close();
+    }
 
-    // 3. 弹出一个温馨的提示框。参数含义：（父窗口为当前窗口, 弹窗标题, 弹窗正文文本）
+    // 3. 弹出一个温馨的提示框 + 系统托盘通知
     QMessageBox::information(this, "晚安守护", "已记录入睡时间！\n系统已进入静默模式，请放下手机，好好休息哦~\n再次点按这个按钮会覆盖上次的数据，不用急");
+    m_notificationMgr->showSleepNotification(currentTime.toString("HH:mm"));
 }
 
 // ==========================================
@@ -448,11 +757,27 @@ void MainWindow::on_btn_sleep_clicked()
 // ==========================================
 void MainWindow::on_btn_wake_clicked()
 {
+    // 0. 防呆：如果入睡时间还没记录，提示用户先去点【准备入睡】
+    QString s_text = ui->lineEdit_sleep_disp->text();
+    if (s_text.isEmpty() || s_text == "未记录") {
+        QMessageBox::information(this, "提示",
+                                 "您还没有记录入睡时间，请先点击【准备入睡】按钮，\n"
+                                 "或手动编辑入睡时间后再点击【我醒了】。");
+        return;
+    }
+
+    // 0. 按钮动效 + 音效
+    pulseButton(ui->btn_wake);
+    m_notificationMgr->playButtonClick();
+
     // 1. 获取当前系统那一瞬间的起床时间
     QTime currentTime = QTime::currentTime();
     //捞取时间填写到lineEdit_wake_disp文本框中
     ui->lineEdit_wake_disp->setText(currentTime.toString("HH:mm"));
     updateDurationDisplay(); // 刷新时长
+
+    // 托盘通知
+    m_notificationMgr->showWakeNotification(currentTime.toString("HH:mm"));
 
     // 现在在on_btn_save_report_clicked函数的函数体，原本就在这个地方
     MainWindow::on_btn_save_report_clicked();
@@ -800,8 +1125,6 @@ void MainWindow::on_btn_week_report_clicked()
     // 1. 获取并校验用户输入的 API Key
     QString apiKey = ui->lineEdit_apiKey->text().trimmed();
 
-    QMessageBox::warning(this, "天机不可泄露", "如果你有，请先在输入框中填写您的 DeepSeek API Key；如果填写了，会调用API生成周报；如果没有填写，公堂自己给你周报");
-
     if (apiKey.isEmpty()) {
         ui->textBrowser_ai->setText("未检测到 API Key，将本地生成周报...");
     } else {
@@ -810,17 +1133,6 @@ void MainWindow::on_btn_week_report_clicked()
 
     // 从界面的日历控件中，抓取用户当前选中的那天，赋值给 targetDate
     QDate targetDate = ui->calendarWidget->selectedDate();
-    ui->textBrowser_ai->setText("正在翻阅本门过去七天的功德簿，等着...");
-
-    // 【新增：非阻塞式等待 2 秒】
-    // 1. 强制让界面立即把刚刚设置的文字刷新画出来
-    ui->textBrowser_ai->repaint();
-    // 2. 创建一个局部的事件循环盒子
-    QEventLoop loop;
-    // 3. 设置一个 2000 毫秒（2秒）后触发的单次定时器，时间到了就让这个盒子退出
-    QTimer::singleShot(2000, &loop, &QEventLoop::quit);
-    // 4. 让程序在这里停下，进入这个局部循环（此时界面不会卡死，依然能响应鼠标点击、拖动等）
-    loop.exec();
 
     QString allJsonData = "以下是本弟子最近七天的真实作息 JSON 数据：\n";
     int foundFiles = 0;
@@ -840,6 +1152,7 @@ void MainWindow::on_btn_week_report_clicked()
 
             // 无论走哪条路，先把本地 JSON 拆解，喂给本地的Weektracker类
             QJsonDocument doc = QJsonDocument::fromJson(jsonContent.toUtf8());
+            if (!doc.isObject()) continue; // 跳过损坏的 JSON 文件
             QJsonObject obj = doc.object();
 
             // 根据你截图中序列化的键名，精准提取数据
@@ -878,6 +1191,14 @@ void MainWindow::on_btn_week_report_clicked()
         ui->textBrowser_ai->append(localResult);
 
     } else {
+        // 校验 API Key 格式：DeepSeek Key 以 "sk-" 开头
+        if (!apiKey.startsWith("sk-") || apiKey.length() < 10) {
+            ui->textBrowser_ai->setText("API Key 格式似乎不正确，请检查是否以 sk- 开头且长度足够。\n已降级为本地周报。");
+            // 降级到本地模式
+            QString localResult = localTracker.generateLocalReport();
+            ui->textBrowser_ai->append(localResult);
+            return;
+        }
         // 【路线 B：有 API Key，走大模型网络请求】
         ui->textBrowser_ai->setText("检测到 API Key，正在请大长老出关批阅一周玉简，请稍候...");
 
@@ -919,12 +1240,14 @@ void MainWindow::on_btn_week_report_clicked()
         // 填好信封（设置 URL 和 请求头）
         QUrl url("https://api.deepseek.com/chat/completions");
         QNetworkRequest request(url);
-        // 在快递单上备注 Content-Type：告诉服务器“我发过去的数据格式是 JSON，请用 JSON 解析它”
+        // 在快递单上备注 Content-Type：告诉服务器"我发过去的数据格式是 JSON，请用 JSON 解析它"
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         // 在快递单上备注 Authorization：这是你的通行证。
         // QString("Bearer %1").arg(apiKey) 会把你的 Key 拼成 "Bearer sk-xxxx" 的标准格式。
         // .toUtf8() 是因为网络传输底层只认字节流（Byte Array），所以要把字符串转成 UTF-8 的字节流。
         request.setRawHeader("Authorization", QString("Bearer %1").arg(apiKey).toUtf8());
+        // 设置网络超时 15 秒，避免请求卡死
+        request.setTransferTimeout(15000);
 
         // 邮递员出发！收到回复后依然会走之前的 on_api_reply_finished 槽函数
         // QJsonDocument(requestBody).toJson() 的作用是：
@@ -983,10 +1306,145 @@ void MainWindow::on_api_reply_finished(QNetworkReply *reply)
     QJsonObject message = firstChoice["message"].toObject();
     QString aiText = message["content"].toString();
 
-    // 把大模型的回复显示在界面的文本框里
-    ui->textBrowser_ai->setText(aiText);
+    // 把大模型的回复显示在界面的文本框里（Markdown 渲染）
+    ui->textBrowser_ai->setMarkdown(aiText);
 
     // 释放内存
     reply->deleteLater();
 }
 
+// ==========================================
+// 可视化图表按钮：读取近7天数据，弹出图表对话框
+// ==========================================
+void MainWindow::on_btn_show_chart_clicked()
+{
+    QDate targetDate = ui->calendarWidget->selectedDate();
+    QVector<SleepDayData> weekData;
+
+    for (int i = 0; i < 7; ++i) {
+        QDate d = targetDate.addDays(-i);
+        QString fileName = dataDir() + "/" + d.toString("yyyy-MM-dd") + ".json";
+        QFile file(fileName);
+
+        SleepDayData sdd;
+        sdd.date = d;
+
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+            file.close();
+
+            if (doc.isObject()) {
+                QJsonObject obj = doc.object();
+                int s_h = obj["sleep_hour"].toInt(-1);
+                int w_h = obj["wake_hour"].toInt(-1);
+
+                sdd.nightSleepMin = obj["night_sleep_min"].toInt(0);
+                sdd.daySleepMin   = obj["day_sleep_min"].toInt(0);
+                sdd.score         = obj["sleep_score"].toInt(0);
+                sdd.stayUp        = obj["stay_up_late"].toBool(false);
+                sdd.noNightSleep  = (s_h == -1 && w_h == -1);
+                sdd.oversleep     = obj["oversleep"].toBool(false);
+            }
+        }
+        weekData.append(sdd);
+    }
+
+    // 检查是否有数据
+    bool hasData = false;
+    for (const auto &d : weekData) {
+        if (d.nightSleepMin > 0 || d.daySleepMin > 0 || d.noNightSleep) {
+            hasData = true;
+            break;
+        }
+    }
+
+    if (!hasData) {
+        QMessageBox::information(this, "提示", "近7天暂无数据，请先打卡！");
+        return;
+    }
+
+    WeekChartDialog dialog(weekData, this);
+    dialog.exec();
+}
+
+// ==========================================
+// ⚙️ 用户设置按钮：打开自定义设置对话框
+// ==========================================
+void MainWindow::on_btn_settings_clicked()
+{
+    QString cfgPath = dataDir() + "/config.json";
+    QJsonObject currentCfg = loadUserConfig(cfgPath);
+
+    SettingsDialog dialog(currentCfg, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        QJsonObject newCfg = dialog.getConfig();
+
+        // 保存到磁盘
+        if (saveUserConfig(cfgPath, newCfg)) {
+            // 立即应用到全局变量
+            applyUserConfig(newCfg);
+
+            QMessageBox::information(this, "设置已保存",
+                                     QString("偏好设置已更新！\n\n"
+                                             "一般入睡时间：%1:00\n"
+                                             "一般起床时间：%2:00\n"
+                                             "熬夜判定区间：%3:00 ~ %4:00\n\n"
+                                             "之后的打卡将按新标准评估。")
+                                         .arg(newCfg["general_sleep_hour"].toInt())
+                                         .arg(newCfg["general_wake_hour"].toInt())
+                                         .arg(newCfg["stayup_begin"].toInt())
+                                         .arg(newCfg["stayup_end"].toInt()));
+        } else {
+            QMessageBox::warning(this, "保存失败", "无法写入配置文件，请检查磁盘权限。");
+        }
+
+        refreshCalendarColors();
+    }
+}
+
+// ==========================================
+// ⌨️ 键盘活跃度分析按钮
+// ==========================================
+void MainWindow::on_btn_keyboard_clicked()
+{
+    if (!m_keyMonitor) return;
+
+    KeyMonitorDialog dialog(m_keyMonitor, this);
+    dialog.exec();
+}
+
+// ==========================================
+// 📄 导出 AI 分析结果为 PDF 文件
+// ==========================================
+void MainWindow::on_btn_export_pdf_clicked()
+{
+    QString html = ui->textBrowser_ai->toHtml();
+    // 如果内容为空或者是默认的占位文字，提示用户
+    if (html.isEmpty() || html.contains("暂无数据") ||
+        ui->textBrowser_ai->toPlainText().trimmed().isEmpty()) {
+        QMessageBox::information(this, "提示", "AI 分析区域为空，请先生成周报后再导出。");
+        return;
+    }
+
+    // 弹出文件保存对话框
+    QString fileName = QFileDialog::getSaveFileName(this, "导出 PDF",
+        QDir::homePath() + "/睡眠分析报告.pdf", "PDF 文件 (*.pdf)");
+    if (fileName.isEmpty()) return;
+
+    // 用 QTextDocument 承载 HTML，通过 QPrinter 输出为 PDF
+    QTextDocument doc;
+    doc.setHtml(html);
+    // 设置合适的页面边距
+    doc.setDocumentMargin(20);
+
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(fileName);
+    printer.setPageSize(QPageSize(QPageSize::A4));
+    printer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout::Millimeter);
+
+    doc.print(&printer);
+
+    QMessageBox::information(this, "导出成功",
+                             QString("PDF 已保存至：\n%1").arg(fileName));
+}

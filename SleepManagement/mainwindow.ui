@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>900</width>
+    <height>680</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -24,12 +24,25 @@
      </rect>
     </property>
    </widget>
+   <widget class="QLabel" name="label_nap">
+    <property name="geometry">
+     <rect>
+      <x>393</x>
+      <y>312</y>
+      <width>45</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>🌙 午睡</string>
+    </property>
+   </widget>
    <widget class="QSpinBox" name="spinBox_nap">
     <property name="geometry">
      <rect>
       <x>440</x>
       <y>310</y>
-      <width>42</width>
+      <width>70</width>
       <height>22</height>
      </rect>
     </property>
@@ -37,14 +50,40 @@
      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;这是午睡时长？&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
     </property>
    </widget>
+   <widget class="QLabel" name="label_exercise">
+    <property name="geometry">
+     <rect>
+      <x>393</x>
+      <y>352</y>
+      <width>45</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>🏃 运动</string>
+    </property>
+   </widget>
    <widget class="QSpinBox" name="spinBox_exercise">
     <property name="geometry">
      <rect>
       <x>440</x>
       <y>350</y>
-      <width>42</width>
+      <width>70</width>
       <height>22</height>
      </rect>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_sit">
+    <property name="geometry">
+     <rect>
+      <x>393</x>
+      <y>382</y>
+      <width>45</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>🪑 久坐</string>
     </property>
    </widget>
    <widget class="QSpinBox" name="spinBox_sit">
@@ -52,7 +91,7 @@
      <rect>
       <x>440</x>
       <y>380</y>
-      <width>42</width>
+      <width>70</width>
       <height>22</height>
      </rect>
     </property>
@@ -86,10 +125,10 @@
    <widget class="QPushButton" name="btn_week_report">
     <property name="geometry">
      <rect>
-      <x>710</x>
-      <y>200</y>
-      <width>71</width>
-      <height>51</height>
+      <x>630</x>
+      <y>300</y>
+      <width>91</width>
+      <height>41</height>
      </rect>
     </property>
     <property name="text">
@@ -97,13 +136,26 @@
 AI分析周报</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="btn_show_chart">
+    <property name="geometry">
+     <rect>
+      <x>710</x>
+      <y>263</y>
+      <width>71</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>📊 图表</string>
+    </property>
+   </widget>
    <widget class="QTextBrowser" name="textBrowser_ai">
     <property name="geometry">
      <rect>
       <x>520</x>
-      <y>260</y>
-      <width>256</width>
-      <height>192</height>
+      <y>355</y>
+      <width>330</width>
+      <height>270</height>
      </rect>
     </property>
    </widget>
@@ -111,7 +163,7 @@ AI分析周报</string>
     <property name="geometry">
      <rect>
       <x>520</x>
-      <y>230</y>
+      <y>265</y>
       <width>171</width>
       <height>20</height>
      </rect>
@@ -195,7 +247,7 @@ AI分析周报</string>
     <property name="geometry">
      <rect>
       <x>570</x>
-      <y>210</y>
+      <y>245</y>
       <width>91</width>
       <height>16</height>
      </rect>
@@ -283,7 +335,7 @@ AI分析周报</string>
    <widget class="QPushButton" name="btn_clear_data">
     <property name="geometry">
      <rect>
-      <x>690</x>
+      <x>740</x>
       <y>10</y>
       <width>101</width>
       <height>41</height>
@@ -292,6 +344,32 @@ AI分析周报</string>
     <property name="text">
      <string>🗑️ 数据清理工具
 点击可展开</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="btn_settings">
+    <property name="geometry">
+     <rect>
+      <x>600</x>
+      <y>10</y>
+      <width>101</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>⚙️ 用户设置</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="btn_keyboard">
+    <property name="geometry">
+     <rect>
+      <x>470</x>
+      <y>10</y>
+      <width>101</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>⌨️ 注意力曲线</string>
     </property>
    </widget>
    <widget class="QWidget" name="widget_legend" native="true">
