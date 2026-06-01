@@ -1,0 +1,60 @@
+name: Build macOS Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-macos:
+    runs-on: macos-15-intel
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          target: 'desktop'
+          cache: true
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+
+      - name: Build
+        run: |
+          cmake --build build --config Release --parallel
+
+      - name: Deploy macOS app
+        run: |
+          APP_PATH="$(find build -name "SleepManagement.app" -type d | head -n 1)"
+          echo "APP_PATH=$APP_PATH"
+
+          if [ -z "$APP_PATH" ]; then
+            echo "SleepManagement.app not found"
+            find build -maxdepth 5 -type d -name "*.app"
+            exit 1
+          fi
+
+          cd "$(dirname "$APP_PATH")"
+          macdeployqt "$(basename "$APP_PATH")" -dmg -verbose=2 -codesign=-
+
+          mkdir -p "$GITHUB_WORKSPACE/package"
+
+          DMG_PATH="$(find . -name "*.dmg" -type f | head -n 1)"
+          if [ -n "$DMG_PATH" ]; then
+            cp "$DMG_PATH" "$GITHUB_WORKSPACE/package/SleepManagement-macOS.dmg"
+          else
+            ditto -c -k --sequesterRsrc --keepParent "$(basename "$APP_PATH")" "$GITHUB_WORKSPACE/package/SleepManagement-macOS.zip"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SleepManagement-macOS
+          path: package/*
