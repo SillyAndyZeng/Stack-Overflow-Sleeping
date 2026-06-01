@@ -1,6 +1,20 @@
 #include "key_monitor.h"
 #include <QtGlobal>
 #include <algorithm>
+#include <cstdint>//新加的
+//这一部分是添加的内容，Windows 下暂时先不统计键盘次数
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+extern "C" uint64_t macos_getSystemKeystrokeCount();
+#endif
+
+static uint64_t getSystemKeystrokeCount()
+{
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+    return macos_getSystemKeystrokeCount();
+#else
+    return 0;
+#endif
+}
 
 KeyMonitor::KeyMonitor(QObject *parent)
     : QObject(parent)
@@ -32,8 +46,7 @@ void KeyMonitor::startMonitoring()
     m_startTime = QTime::currentTime();
 
     // 初始化系统按键计数基线
-    extern uint64_t macos_getSystemKeystrokeCount();
-    m_lastSysCount = macos_getSystemKeystrokeCount();
+    m_lastSysCount = getSystemKeystrokeCount();//修改了
 
     // 每分钟推进一个槽位
     m_slotTimer->start(60000);
@@ -54,8 +67,7 @@ void KeyMonitor::stopMonitoring()
 // 每 200ms 调用：对比系统按键计数的变化，检测新增按键
 void KeyMonitor::onPollTimer()
 {
-    extern uint64_t macos_getSystemKeystrokeCount();
-    uint64_t current = macos_getSystemKeystrokeCount();
+    uint64_t current = getSystemKeystrokeCount();//修改了
 
     if (m_lastSysCount > 0 && current > m_lastSysCount) {
         uint64_t diff = current - m_lastSysCount;
