@@ -4,13 +4,13 @@ project(SleepManagement LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+include(GNUInstallDirs)
 # 在工程配置里把 Network 模块加进来
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Network PrintSupport)
 
 qt_standard_project_setup()
 
-qt_add_executable(SleepManagement
-    WIN32 MACOSX_BUNDLE
+set(PROJECT_SOURCES
     main.cpp
     mainwindow.cpp
     mainwindow.h
@@ -25,24 +25,34 @@ qt_add_executable(SleepManagement
     notification_manager.cpp
     key_monitor.h
     key_monitor.cpp
-    key_monitor_mac.mm
     keyboard_chart.h
     keyboard_chart.cpp
 )
 
+if(APPLE)#这里注意写了对于系统的判断，关键改动，否则windows跑不了
+    enable_language(OBJCXX)
+
+    list(APPEND PROJECT_SOURCES
+        key_monitor_mac.mm
+    )
 # 为 .mm 文件开启 Objective-C ARC（自动引用计数）
-set_source_files_properties(key_monitor_mac.mm PROPERTIES
-    COMPILE_FLAGS "-fobjc-arc"
+    set_source_files_properties(key_monitor_mac.mm PROPERTIES
+        COMPILE_FLAGS "-fobjc-arc"
+    )
+endif()
+
+qt_add_executable(SleepManagement
+    WIN32 MACOSX_BUNDLE
+    ${PROJECT_SOURCES}
 )
 
 target_link_libraries(SleepManagement
     PRIVATE
         Qt::Core
         Qt::Widgets
-        Qt::Network   # 网络模块（API 请求）
-        Qt::PrintSupport  # PDF 导出
+        Qt::Network
+        Qt::PrintSupport
 )
-
 # macOS 需要链接 Cocoa 和 CoreGraphics 框架
 if(APPLE)
     find_library(COCOA_LIBRARY Cocoa)
@@ -60,4 +70,5 @@ qt_generate_deploy_app_script(
     OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
+
 install(SCRIPT ${deploy_script})
