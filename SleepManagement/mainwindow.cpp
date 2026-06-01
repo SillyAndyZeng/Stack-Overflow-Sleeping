@@ -997,7 +997,7 @@ void MainWindow::on_btn_save_report_clicked()
         }
     }
 
-    //根据入睡时间计算作息日，一般来讲是起床时的前一天；
+    //根据起床时间计算作息日，一般来讲是起床时的前一天；
     QDate recordDay = QDate::currentDate().addDays(-1);
     //极特殊情况当晚睡当晚起，回到当天
     if (s_hour > 12 && w_hour > s_hour)
