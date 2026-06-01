@@ -918,7 +918,7 @@ void MainWindow::save_and_report(QDate recordDay, int s_hour, int s_min, int w_h
     // 9. 使用 QString 强大的字符串格式化功能（.arg()），动态把日期、分数、称号拼装成一封完整的报告文本
     // 函数中的 %1 会被 dateStr 替换，以此类推
     QString finalReport = QString("【%1 清晨日结报告】\n\n数据录入成功！\n累计睡眠时长：%2\n判定您的睡眠评分为： %3 分\n\n授予称号：\n%4")
-                              .arg(dateStr, durationText, QString::number(score), title);
+                              .arg(dateStr, durationText, QString::number(score), QString::fromStdString(title));
 
     // 10. 弹出一个最终的日结报告窗口，将拼装好的内容展示给用户看
     QMessageBox::information(this, "早安，打工人", finalReport);
