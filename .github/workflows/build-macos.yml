@@ -22,9 +22,10 @@ jobs:
 
       - name: Configure CMake
         run: |
-          cmake -S . -B build \
+          cmake -S SleepManagement -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+
 
       - name: Build
         run: |
