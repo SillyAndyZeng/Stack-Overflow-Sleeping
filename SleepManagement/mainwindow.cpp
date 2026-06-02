@@ -55,6 +55,22 @@ MainWindow::MainWindow(QWidget *parent)
     // 限制日历最大可选日期为今天，未来的日期将被置灰且无法点击
     ui->calendarWidget->setMaximumDate(QDate::currentDate());
 
+    // 引入 QTimer 每分钟动态刷新日历
+    QTimer *calendarRefreshTimer = new QTimer(this);
+    connect(calendarRefreshTimer, &QTimer::timeout, this, [this]() {
+        QDate realToday = QDate::currentDate();
+
+        // 1. 刷新最大可选日期
+        ui->calendarWidget->setMaximumDate(realToday);
+
+        // 2. 如果此时日历选中的还是昨天（说明刚好跨天了），就自动跳到今天
+        // （加上判断是为了防止用户正在查看更早的历史记录时被强行拉回今天）
+        if (ui->calendarWidget->selectedDate() == realToday.addDays(-1)) {
+            ui->calendarWidget->setSelectedDate(realToday);
+        }
+    });
+    calendarRefreshTimer->start(60000); // 60000毫秒 = 1分钟检查一次，性能开销不大
+
     connect(ui->calendarWidget, &QCalendarWidget::selectionChanged,
         this, &MainWindow::onCalendarDateSelected);//构造函数绑定日历信号
 
@@ -184,11 +200,14 @@ MainWindow::MainWindow(QWidget *parent)
     // ==========================================================
 
     // ==========================================================
-    // 【初始化系统托盘与气泡通知】
+    // 【保存到系统托盘与气泡通知】
     m_notificationMgr = new NotificationManager(this);
     connect(m_notificationMgr, &NotificationManager::requestShowWindow, this, [this]() {
-        // 【新增修复代码】：每次从托盘唤醒主窗口时，强制刷新一次日期限制
-        ui->calendarWidget->setMaximumDate(QDate::currentDate());
+        QDate realToday = QDate::currentDate();
+        // 【新增修复】每次从托盘唤醒主窗口时，强制刷新一次日期限制
+        ui->calendarWidget->setMaximumDate(realToday);
+        // 可选：每次点开都强制回到“今天”，方便打卡
+        ui->calendarWidget->setSelectedDate(realToday);
         showNormal();
         activateWindow();
         raise();
