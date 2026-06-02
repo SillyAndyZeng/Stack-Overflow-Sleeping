@@ -33,6 +33,8 @@
 #include <QPageSize>
 #include <QPageLayout>
 #include <QFileDialog>
+// 用于流式读取外部文件数据
+#include <QTextStream>
 
 /*
 当界面上的按钮被点击时，具体要做什么计算、弹出什么提示，全部写在这里。
@@ -311,104 +313,18 @@ void MainWindow::showWelcomeDialog(bool force)
 // ==========================================
 QString MainWindow::buildManualHtml()
 {
-    return QStringLiteral(R"(
-<h2 style='text-align:center;color:#4D96FF;'>🌙 睡眠守护 · 用户说明书</h2>
-<hr>
-
-<h3 style='color:#333;'>一、软件概述</h3>
-<p>睡眠守护是一款面向大学生群体的作息健康管理工具，由 <b>Stack Overflow</b> 小组（王晨瑜、董弈齐、曾梓航）开发。它帮助您记录每日作息、生成健康评分与趣味称号，并提供周报分析、键盘注意力监测等进阶功能。</p>
-
-<h3 style='color:#333;'>二、安装与运行</h3>
-<ul>
-<li><b>编译环境</b>：Qt 6.5+，CMake 3.19+，C++17 编译器</li>
-<li><b>构建步骤</b>：<code>cmake -B build && cmake --build build</code></li>
-<li><b>macOS 权限</b>：键盘监测功能需要授予「输入监控」权限（系统设置 → 隐私与安全性 → 输入监控）</li>
-</ul>
-
-<h3 style='color:#333;'>三、界面导览</h3>
-<ul>
-<li><b>📅 左侧日历</b>：点击任意日期查看历史作息，不同颜色标记当日状态</li>
-<li><b>🛌 中部打卡区</b>：「准备入睡」和「我醒了」两大核心按钮</li>
-<li><b>📊 右侧数据区</b>：午睡/运动/久坐输入框、周报与 AI 分析面板</li>
-<li><b>🔧 顶部工具栏</b>：设置、键盘监测、数据清理、帮助（?）</li>
-</ul>
-
-<h3 style='color:#333;'>四、每日打卡流程</h3>
-<ol>
-<li>晚上准备睡觉时，点击<b>「准备入睡」</b>按钮，系统自动记录当前时间为入睡时间</li>
-<li>第二天早上醒来，点击<b>「我醒了」</b>按钮，系统记录起床时间</li>
-<li>在弹出的确认框中，核对入睡/起床时间是否准确</li>
-<li>填写午睡时长、运动时长、久坐时长等白天数据</li>
-<li>点击<b>「保存并生成简报」</b>，系统自动计算睡眠评分并弹出日结报告</li>
-</ol>
-
-<h3 style='color:#333;'>五、手动编辑与补录</h3>
-<p>点击日历上<b>过去的日期</b>，右侧会显示该日数据。「修改入睡时间」和「修改起床时间」按钮变为可用，点击后可在弹窗中精确调整时间。</p>
-<p>如果某天通宵未睡，可点击<b>「通宵」</b>按钮进行标记。</p>
-
-<h3 style='color:#333;'>六、周报与 AI 分析</h3>
-<p>点击<b>「周报生成」</b>按钮，系统会读取近 7 天数据进行综合分析：</p>
-<ul>
-<li><b>本地模式</b>：无需网络，调用内置算法生成文字周报</li>
-<li><b>AI 模式</b>：在输入框中填入 DeepSeek API Key（以 <code>sk-</code> 开头），系统将数据发送给大模型，生成毒舌修仙风格的分析报告</li>
-</ul>
-
-<h3 style='color:#333;'>七、图表可视化</h3>
-<p>点击<b>「图表」</b>按钮，弹出可视化窗口：</p>
-<ul>
-<li><b>📊 睡眠时长柱状图</b>：展示近 7 天每日睡眠时长（含午睡叠加），附带 7-8 小时推荐参考线</li>
-<li><b>📈 评分趋势折线图</b>：展示每日睡眠评分（-5 ~ 3）的变化趋势</li>
-</ul>
-
-<h3 style='color:#333;'>八、键盘活跃度监测</h3>
-<p>点击<b>「键盘」</b>按钮打开键盘活跃度分析窗口。程序在后台实时记录每分钟敲击次数，生成注意力曲线柱状图。数据保留最近 8 小时，绿色=低活跃，黄色=中活跃，红色=高活跃。</p>
-
-<h3 style='color:#333;'>九、系统托盘与通知</h3>
-<ul>
-<li>点击窗口关闭按钮会<b>最小化到系统托盘</b>而非退出程序</li>
-<li>托盘图标右键可「显示主窗口」或「退出程序」</li>
-<li>凌晨 2:00 ~ 6:00 期间未记录入睡，系统会自动弹出<b>深夜提醒</b>气泡通知</li>
-<li>点击<b>「设置」</b>可调整常规入睡/起床时间、熬夜判定区间</li>
-</ul>
-
-<h3 style='color:#333;'>十、日历颜色说明</h3>
-<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;width:100%;font-size:13px;'>
-<tr><th>颜色</th><th>含义</th></tr>
-<tr><td style='background:#FF6B6B;color:white;text-align:center;'>红</td><td>通宵熬夜，整夜未眠</td></tr>
-<tr><td style='background:#FF8C00;color:white;text-align:center;'>深橙</td><td>熬夜 + 久坐/运动不足</td></tr>
-<tr><td style='background:#FFB347;text-align:center;'>橙</td><td>久坐超标或运动不足</td></tr>
-<tr><td style='background:#FFD93D;text-align:center;'>黄</td><td>熬夜</td></tr>
-<tr><td style='background:#C8A2C8;text-align:center;'>紫</td><td>睡懒觉（起床过晚）</td></tr>
-<tr><td style='background:#6BCB77;text-align:center;'>绿</td><td>睡眠充足（评分 ≥ 3）</td></tr>
-<tr><td style='background:#4D96FF;color:white;text-align:center;'>蓝</td><td>正常记录</td></tr>
-</table>
-
-<h3 style='color:#333;'>十一、数据管理</h3>
-<ul>
-<li><b>清空当前日期</b>：删除日历上选中那天的数据</li>
-<li><b>清空指定区间</b>：选择起始和结束日期，批量删除</li>
-<li><b>清空全部数据</b>：一键重置所有作息记录</li>
-<li>数据以 JSON 格式存储在系统应用数据目录下</li>
-</ul>
-
-<h3 style='color:#333;'>十二、成就系统</h3>
-<ul>
-<li>连续打卡 7 天、30 天解锁规律作息勋章</li>
-<li>连续早睡 3 天、7 天解锁早睡勋章</li>
-<li>达成成就时弹出提示并播放音效</li>
-</ul>
-
-<h3 style='color:#333;'>十三、常见问题</h3>
-<p><b>Q：为什么键盘监测没有反应？</b><br>
-A：macOS 需要在「系统设置 → 隐私与安全性 → 输入监控」中授予权限。</p>
-<p><b>Q：为什么 AI 周报告失败？</b><br>
-A：请检查 API Key 是否以 <code>sk-</code> 开头且余额充足，网络请求有 15 秒超时限制。</p>
-<p><b>Q：数据存在哪里？</b><br>
-A：存储在系统应用数据目录（<code>QStandardPaths::AppDataLocation</code>）下的 <code>.json</code> 文件中，以日期命名。</p>
-
-<hr>
-<p style='text-align:center;color:#999;font-size:12px;'>Stack Overflow · 大学生健康作息管理系统 · 课程设计作品</p>
-)");
+    // Qt 中以 ":/" 开头的路径，代表读取我们打包进程序里的 QRC 内嵌文件资源
+    // ":/manual.html" 是一个虚拟路径，冒号表示 QRC 资源树根目录。
+    // 当 QFile 寻找这个虚拟路径时，它将从可执行程序内部载入数据，而不是读取硬盘上的实际文件
+    QFile file(":/manual.html");
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        // 如果文件读取失败，放一个保底的 HTML 格式文本，防止软件直接开天窗
+        return QStringLiteral("<h2 style='color:red; text-align:center;'>⚠️ 无法加载说明书内容，请检查项目编译设置。</h2>");
+    }
+    // 使用 QTextStream 流式读取文件
+    QTextStream in(&file);
+    // Qt 6 中 QTextStream 默认是以 UTF-8 读取文本文件，此处可以安全省心
+    return in.readAll();
 }
 
 
@@ -680,7 +596,8 @@ void MainWindow::onCalendarDateSelected()
     // ★ 日历切换数据：淡入刷新动效（透明度回弹脉冲）
     if (!m_displayEffects.isEmpty()) {
         auto *group = new QParallelAnimationGroup(this);
-        for (auto *effect : m_displayEffects) {
+        // *effect显式提示effect是指针。不加*，effect也是指针
+        for (auto *effect : std::as_const(m_displayEffects)) {
             auto *anim = new QPropertyAnimation(effect, "opacity", this);
             anim->setDuration(300);
             anim->setStartValue(1.0);
@@ -1140,7 +1057,7 @@ void MainWindow::on_action_clear_all_triggered()
         QDir dir(dataDir());
         // 扫描目录下所有的 json 文件
         QStringList files = dir.entryList({"*.json"}, QDir::Files);
-        for (const QString &fileName : files) {
+        for (const QString &fileName : std::as_const(files)) {
             dir.remove(fileName); // 逐个击破
         }
 

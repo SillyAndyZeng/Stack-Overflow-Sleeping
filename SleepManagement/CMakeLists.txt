@@ -27,6 +27,7 @@ set(PROJECT_SOURCES
     key_monitor.cpp
     keyboard_chart.h
     keyboard_chart.cpp
+    resources.qrc
 )
 
 if(APPLE)#这里注意写了对于系统的判断，关键改动，否则windows跑不了
