@@ -248,8 +248,15 @@ void MainWindow::showWelcomeDialog(bool force)
     browser->setOpenExternalLinks(true);
     browser->setHtml(buildManualHtml());
     browser->setStyleSheet(
-        "QTextBrowser { background-color: #FAFAFA; border: 1px solid #E0E0E0; "
-        "border-radius: 8px; padding: 12px; font-size: 14px; line-height: 1.6; }");
+        "QTextBrowser { "
+    "background-color: #FAFAFA; "
+    "color: #222222; "
+    "border: 1px solid #E0E0E0; "
+    "border-radius: 8px; "
+    "padding: 12px; "
+    "font-size: 14px; "
+    "line-height: 1.6; "
+    "}");
     layout->addWidget(browser, 1);
 
     // 底部：勾选框 + 关闭按钮
