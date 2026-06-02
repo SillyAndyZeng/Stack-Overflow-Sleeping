@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""生成测试数据（全部用过去日期，避开setMaximumDate限制）"""
+"""生成测试数据（用过去日期，避开setMaximumDate限制）"""
 
 import json, os, datetime
 from pathlib import Path
@@ -61,4 +61,4 @@ for i, pf in enumerate(profiles):
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(pf, f, indent=2, ensure_ascii=False)
 
-print(f"✅ 已生成 7 天测试数据（{profiles[-1]['date']} ~ {profiles[0]['date']}）")
+print(f"已生成 7 天测试数据（{profiles[-1]['date']} ~ {profiles[0]['date']}）")
