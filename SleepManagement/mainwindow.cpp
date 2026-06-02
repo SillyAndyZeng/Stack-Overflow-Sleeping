@@ -57,6 +57,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     // 引入 QTimer 每分钟动态刷新日历
     QTimer *calendarRefreshTimer = new QTimer(this);
+    //connect：连接信号与槽的电线。可以手动写，另外如果槽函数的名称符合on_控件名_信号名()的格式，qt会自动实现connect
+    //第一个参数：谁发送的信号；第二个参数：发出的信号本身是什么；第三个：接收信号的对象；第四个：槽，也就是要执行的代码
+    //这里的槽用了lambda表达式，函数体就是大括号里的内容
     connect(calendarRefreshTimer, &QTimer::timeout, this, [this]() {
         QDate realToday = QDate::currentDate();
 
