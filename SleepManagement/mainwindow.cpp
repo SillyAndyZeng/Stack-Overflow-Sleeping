@@ -136,7 +136,7 @@ MainWindow::MainWindow(QWidget *parent)
     QList<LegendItem> legendList = {
         {0x6BCB77, "良好：睡眠充足 (score>=3)"},
         {0x4D96FF, "正常：普通作息记录"},
-        {0xFFD93D, "熬夜："},
+        {0xFFD93D, "熬夜：在你设定的区间内入睡"},
         {0xC8A2C8, "懒觉：起床过晚"},
         {0xFFB347, "警示：久坐超标 或 运动不足"},
         {0xFF6B6B, "通宵：修仙暴击，整夜未眠"}
@@ -187,6 +187,8 @@ MainWindow::MainWindow(QWidget *parent)
     // 【初始化系统托盘与气泡通知】
     m_notificationMgr = new NotificationManager(this);
     connect(m_notificationMgr, &NotificationManager::requestShowWindow, this, [this]() {
+        // 【新增修复代码】：每次从托盘唤醒主窗口时，强制刷新一次日期限制
+        ui->calendarWidget->setMaximumDate(QDate::currentDate());
         showNormal();
         activateWindow();
         raise();
