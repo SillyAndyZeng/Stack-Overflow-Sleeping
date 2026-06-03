@@ -17,7 +17,7 @@ namespace {
     const int MARGIN_L = 50;   // 左边距（Y轴标签）
     const int MARGIN_R = 20;   // 右边距
     const int MARGIN_T = 25;   // 上边距（标题）
-    const int MARGIN_B = 35;   // 下边距（X轴标签）
+    const int MARGIN_B = 50;   // 下边距（X轴标签）
 
     // 根据评分返回柱状颜色
     QColor barColor(int score, bool noNightSleep, bool stayUp) {
@@ -360,8 +360,8 @@ WeekChartDialog::WeekChartDialog(const QVector<SleepDayData> &data, QWidget *par
     : QDialog(parent)
 {
     setWindowTitle("📊 本周作息可视化分析");
-    setMinimumSize(600, 580);
-    resize(640, 600);
+    setMinimumSize(600, 640);
+    resize(640, 660);
 
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(8);
@@ -391,6 +391,9 @@ WeekChartDialog::WeekChartDialog(const QVector<SleepDayData> &data, QWidget *par
     auto *barChart = new SleepBarChart(this);
     barChart->setData(data);
     mainLayout->addWidget(barChart, 3);  // stretch 3
+
+    // 上下图之间留足空隙，避免柱状图的横坐标标签被评分图的标题遮住
+    mainLayout->addSpacing(20);
 
     // 睡眠评分趋势图
     auto *scoreTitle = new QLabel("每日睡眠评分趋势", this);

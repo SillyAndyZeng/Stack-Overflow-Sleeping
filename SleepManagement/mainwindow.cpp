@@ -135,7 +135,10 @@ MainWindow::MainWindow(QWidget *parent)
         "QPushButton { background-color: #E0E0E0; color: #555; border-radius: 14px; "
         "font-size: 16px; font-weight: bold; border: none; }"
         "QPushButton:hover { background-color: #4D96FF; color: white; }");
-    connect(btnHelp, &QPushButton::clicked, this, [this]() { showWelcomeDialog(true); });
+    connect(btnHelp, &QPushButton::clicked, this, [this]() {
+        if (showWelcomeDialog(true))
+            QApplication::quit();
+    });
 
     refreshCalendarColors();//新增:启动时加载历史颜色
     updateAchievementDisplay(); // 启动时加载并显示成就
@@ -216,7 +219,9 @@ MainWindow::MainWindow(QWidget *parent)
         showNormal();
         activateWindow();
         raise();
-        showWelcomeDialog();  // 从托盘恢复时按 config 决定是否弹窗
+        // 从托盘恢复时按 config 决定是否弹窗，若用户选退出则关闭程序
+        if (showWelcomeDialog())
+            QApplication::quit();
     });
     m_notificationMgr->startMonitoring();
     // ==========================================================
@@ -245,7 +250,8 @@ MainWindow::MainWindow(QWidget *parent)
     // ==========================================================
 
     // 启动时强制显示欢迎说明书（首次启动必弹）
-    showWelcomeDialog(true);
+    // 如果用户选择了"退出程序"，设置标记供 main() 判断
+    m_shouldQuitOnStart = showWelcomeDialog(true);
 }
 MainWindow::~MainWindow()
 {
@@ -255,12 +261,12 @@ MainWindow::~MainWindow()
 // ==========================================
 // 欢迎说明书弹窗
 // ==========================================
-void MainWindow::showWelcomeDialog(bool force)
+bool MainWindow::showWelcomeDialog(bool force)
 {
     // 检查是否已勾选"不再显示"（force 为 true 时忽略该设置）
     QString cfgPath = dataDir() + "/config.json";
     QJsonObject cfg = loadUserConfig(cfgPath);
-    if (!force && !cfg["show_welcome"].toBool(true)) return;
+    if (!force && !cfg["show_welcome"].toBool(true)) return false;
 
     QDialog dialog(this);
     dialog.setWindowTitle("📖 睡眠守护 · 用户说明书");
@@ -321,11 +327,7 @@ void MainWindow::showWelcomeDialog(bool force)
     cfg["show_welcome"] = !dontShowAgain->isChecked();
     saveUserConfig(cfgPath, cfg);
 
-    // 如果完全退出
-    if (shouldQuit) {
-        QApplication::quit();
-        return;
-    }
+    return shouldQuit;
 }
 
 // ==========================================
@@ -1287,7 +1289,9 @@ void MainWindow::on_btn_show_chart_clicked()
     QDate targetDate = ui->calendarWidget->selectedDate();
     QVector<SleepDayData> weekData;
 
-    for (int i = 0; i < 7; ++i) {
+    // 从最旧到最新依次加载（i=6 最旧 → i=0 今天），
+    // 这样 weekData[0] = 上周前, weekData[6] = 今天，图表从左到右即为日期正序
+    for (int i = 6; i >= 0; --i) {
         QDate d = targetDate.addDays(-i);
         QString fileName = dataDir() + "/" + d.toString("yyyy-MM-dd") + ".json";
         QFile file(fileName);

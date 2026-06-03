@@ -41,6 +41,9 @@ public:
     // 析构函数：在窗口被关闭、销毁时自动调用，用来做清理工作（比如释放内存）
     ~MainWindow();
 
+    // 【新增】启动时是否选择了"退出程序"
+    bool shouldQuitOnStart() const { return m_shouldQuitOnStart; }
+
     // 这里是我们补上的两个按钮的“插槽声明(菜单)”
     // 当你的槽函数命名符合 "on_控件名_信号名()" 的规则时，Qt 会在运行时把对应的控件和这个函数自动绑定起来。
 private slots:
@@ -86,6 +89,8 @@ private:
     KeyMonitor *m_keyMonitor;
     // 【新增】显示区域透明度动效用
     QList<QGraphicsOpacityEffect*> m_displayEffects;
+    // 【新增】启动时用户选择"退出程序"的标记
+    bool m_shouldQuitOnStart = false;
     // 新增：告诉编译器有这几个私有辅助函数
     QString dataDir();
     void refreshCalendarColors();
@@ -100,7 +105,8 @@ private:
     // 【新增】按钮缩放动效
     void pulseButton(QPushButton *btn);
     // 【新增】欢迎说明书弹窗（force = true 忽略"不再显示"设置）
-    void showWelcomeDialog(bool force = false);
+    // 返回 true 表示用户选择了"退出程序"
+    bool showWelcomeDialog(bool force = false);
     // 【新增】生成说明书 HTML 内容
     static QString buildManualHtml();
 };

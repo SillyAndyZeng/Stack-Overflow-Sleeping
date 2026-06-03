@@ -9,7 +9,7 @@
 // 获取系统级按键次数（自系统启动以来的累计值）
 // 通过前后两次调用差值，可精确获取时间窗口内的按键数量
 // =====================================================
-uint64_t macos_getSystemKeystrokeCount()
+extern "C" uint64_t macos_getSystemKeystrokeCount()
 {
     // kCGEventSourceStateCombinedSessionState = 当前用户会话（所有应用）
     // kCGEventKeyDown = 按键按下事件
