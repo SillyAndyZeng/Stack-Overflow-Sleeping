@@ -2,19 +2,25 @@
 #include <QtGlobal>
 #include <algorithm>
 #include <cstdint>//新加的
-//这一部分是添加的内容，Windows 下暂时先不统计键盘次数
-#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)//这一段现在可以通过windows实现
 extern "C" uint64_t macos_getSystemKeystrokeCount();
+#elif defined(Q_OS_WIN)
+extern "C" uint64_t windows_getSystemKeystrokeCount();
+extern "C" void     windows_stopKeystrokeMonitor();
 #endif
 
 static uint64_t getSystemKeystrokeCount()
 {
 #if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
     return macos_getSystemKeystrokeCount();
+#elif defined(Q_OS_WIN)
+    return windows_getSystemKeystrokeCount();
 #else
     return 0;
 #endif
 }
+
 
 KeyMonitor::KeyMonitor(QObject *parent)
     : QObject(parent)
@@ -30,6 +36,9 @@ KeyMonitor::KeyMonitor(QObject *parent)
 KeyMonitor::~KeyMonitor()
 {
     stopMonitoring();
+#if defined(Q_OS_WIN)
+    windows_stopKeystrokeMonitor();
+#endif
 }
 
 void KeyMonitor::startMonitoring()
