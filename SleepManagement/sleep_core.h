@@ -32,7 +32,7 @@
 
 //发现有一些有意义的变量，我们可以在顶部定义并控制
 //比如判断是否熬夜的区间
-#define oversleep_rewardScore 1
+#define catchUpSleep_rewardScore 1
 #define daysleep_rewardScore 1
 #define daysleep_judgethreshold 15
 #define daySpiltHour 6
@@ -140,13 +140,13 @@ public:
         int nightsleep = calculateNightSleep();
         //总之我觉得后面可以把晚上睡眠和白天睡眠分开考虑，晚上不睡白天昏昏欲睡也不好，但总比不睡好x
         if (noNightSleep) return -5; // 熬穿
-        else if(oversleep) return 0; //睡懒觉，后面再评价：如果睡眠分小于一定数目，睡懒觉有加分（补觉）；否则不加分
+        else if(oversleep) return 0; //睡懒觉（即起太晚），后面再评价：如果睡眠分小于一定数目，睡懒觉有加分（补觉）；否则不加分
         else if(nightsleep<360) return 1; //小于6h
         else if(nightsleep<420) return 2; //6-7h
         else if(nightsleep<480) return 3; //7-8h
         else if(nightsleep<=540) return 3; //8-9h
         else if(nightsleep<=600) return 2; //9-10h
-        else {oversleep = true; return 1;} //大于10h：算睡懒觉；睡太长也不好
+        else {return 1;} //大于10h：不算睡懒觉；睡太长也不好
     }
     void displayReport() {
         int total = getTotalSleep();
@@ -180,7 +180,7 @@ public:
     // 新增：生成供 Qt 界面显示的本地周报
     QString generateLocalReport() {
         int localTotalStayUp = 0;
-        int localTotalOverSleep = 0;
+        int localTotalCatchUpSleep = 0;
         int localTotalCatchup = 0;
         int localTimeScore = 0;
         double localWeeklySum = 0;
@@ -197,12 +197,13 @@ public:
                     localTimeScore += daysleep_rewardScore;
                 }
             }
-            if (day.oversleep) {
-                localTotalOverSleep++;
-                if (localTotalOverSleep <= localTotalStayUp + 2) {
+            // 计算有效补觉天数，必须睡眠时长超过一定时间（8h）
+            if (day.calculateNightSleep() >= 480) {
+                localTotalCatchUpSleep++;
+                if (localTotalCatchUpSleep <= localTotalStayUp + 2) {
                     day.catchupOnSleep = true;
                     localTotalCatchup++;
-                    localTimeScore += oversleep_rewardScore;
+                    localTimeScore += catchUpSleep_rewardScore;
                 }
             }
             localTimeScore += DailyScore;
@@ -211,7 +212,7 @@ public:
         QString report = "=== 🏠 本地核心算法周报 ===\n\n";
         report += QString("以当前选中的日期作为最后一天，向前读取了共 %1 天的数据\n").arg(weekData.size());
         report += QString("🛌 本周熬夜天数: %1 天\n").arg(localTotalStayUp);
-        report += QString("💤 本周睡懒觉天数: %1 天 (其中有效补觉 %2 天)\n").arg(localTotalOverSleep).arg(localTotalCatchup);
+        report += QString("💤 本周睡懒觉天数: %1 天 (其中有效补觉 %2 天)\n").arg(localTotalCatchUpSleep).arg(localTotalCatchup);
 
         int avgSleepMin = weekData.empty() ? 0 : (localWeeklySum / weekData.size());
         report += QString("📊 日均睡眠时长: %1 小时 %2 分钟\n").arg(avgSleepMin / 60).arg(avgSleepMin % 60);
