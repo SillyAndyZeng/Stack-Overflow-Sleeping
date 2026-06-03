@@ -300,12 +300,32 @@ void MainWindow::showWelcomeDialog(bool force)
         "QPushButton:hover { background-color: #3A7BD5; }");
     connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
     bottomBar->addWidget(closeBtn);
+    // 增加一个完全退出程序的按钮
+    auto *quitBtn = new QPushButton("退出程序", &dialog);
+    quitBtn->setFixedSize(110, 32);
+    quitBtn->setStyleSheet(
+        "QPushButton { background-color: #E74C3C; color: white; border-radius: 6px; "
+        "font-size: 13px; font-weight: bold; border: none; }"
+        "QPushButton:hover { background-color: #C0392B; }");
+    bool shouldQuit = false;
+    connect(quitBtn, &QPushButton::clicked, &dialog, [&]() {
+        shouldQuit = true;
+        dialog.accept();
+    });
+    bottomBar->addWidget(quitBtn);
+
     layout->addLayout(bottomBar);
 
     dialog.exec();
 
     cfg["show_welcome"] = !dontShowAgain->isChecked();
     saveUserConfig(cfgPath, cfg);
+
+    // 如果完全退出
+    if (shouldQuit) {
+        QApplication::quit();
+        return;
+    }
 }
 
 // ==========================================
