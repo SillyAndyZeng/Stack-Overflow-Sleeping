@@ -9,6 +9,7 @@ include(GNUInstallDirs)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Network PrintSupport)
 
 qt_standard_project_setup()
+set(CMAKE_AUTORCC ON) # 确保QT资源系统自动打开RCC，读取说明书.html
 
 set(PROJECT_SOURCES
     main.cpp

@@ -99,7 +99,7 @@ public:
         //此时用户昨晚肯定是睡了觉的，也就是入睡时间不会晚于其一般起床时间。只会出现早睡（早于其一般入睡时间）与正常睡；以及睡懒觉和正常起
         //早睡
         //if (start <= (generalSleep_hour - 2) * 60) start = (generalSleep_hour - 2) * 60;
-        //晚起床
+        //晚起床：晚于平时两小时
         if (end >= (generalWake_hour + 2) * 60) oversleep = true;
         if (end < start) end += 24 * 60;   //如果睡眠时间（如23:00）晚于起床时间（如8:00），认为二者不在同一天，将8+24 = 32
         return end - start; //作差得到睡眠总分钟数

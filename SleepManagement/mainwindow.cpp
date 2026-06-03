@@ -20,6 +20,7 @@
 #include <QParallelAnimationGroup> // 日历淡入动画组
 #include <QDialog>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QDialogButtonBox> // 美化的手动编辑时间窗口
 #include <QFormLayout> // 菜单相关
 #include <QTextBrowser>
@@ -129,7 +130,7 @@ MainWindow::MainWindow(QWidget *parent)
     auto *btnHelp = new QPushButton("?", this);
     btnHelp->setObjectName("btn_help");
     btnHelp->setFixedSize(28, 28);
-    btnHelp->move(440, 16);
+    btnHelp->move(850, 12);
     btnHelp->setStyleSheet(
         "QPushButton { background-color: #E0E0E0; color: #555; border-radius: 14px; "
         "font-size: 16px; font-weight: bold; border: none; }"
@@ -155,12 +156,11 @@ MainWindow::MainWindow(QWidget *parent)
     };
 
     QList<LegendItem> legendList = {
-        {0x6BCB77, "良好：睡眠充足 (score>=3)"},
-        {0x4D96FF, "正常：普通作息记录"},
-        {0xFFD93D, "熬夜：在你设定的区间内入睡"},
-        {0xC8A2C8, "懒觉：起床过晚"},
-        {0xFFB347, "警示：久坐超标 或 运动不足"},
-        {0xFF6B6B, "通宵：修仙暴击，整夜未眠"}
+        {0x6BCB77, "良好：睡眠充足 (score=3)"},
+        {0x1CFCF4, "正常：score=2"},
+        {0xFFFF66, "一般：score=1"},
+        {0xC8A2C8, "懒觉：起床晚于一般起床时间过久"},
+        {0xFF6B6B, "通宵：修仙暴击"}
     };
 
     // 3. 循环将这些图例塞进布局中
@@ -401,10 +401,10 @@ void MainWindow::refreshCalendarColors()
         // no_night_sleep / oversleep 是你即将补充的布尔字段，
         // 若文件里尚未存在，toBool(false) 会安全返回 false，不影响现有记录
         bool noNightSleep = obj["no_night_sleep"].toBool(false);
-        bool stayUp       = obj["stay_up_late"].toBool(false);
+        // bool stayUp       = obj["stay_up_late"].toBool(false);
         bool oversleep    = obj["oversleep"].toBool(false);
-        int  sit          = obj["sit_min"].toInt(0);
-        int  exe          = obj["exercise_min"].toInt(0);
+        // int  sit          = obj["sit_min"].toInt(0);
+        // int  exe          = obj["exercise_min"].toInt(0);
         int  score        = obj["sleep_score"].toInt(0);
 
         QTextCharFormat fmt;
@@ -413,12 +413,10 @@ void MainWindow::refreshCalendarColors()
         // 使用十六进制数表示RGB颜色
         QColor bgColor;
         if (noNightSleep)                          bgColor = QColor(0xFF6B6B); // 红：熬穿
-        else if (stayUp && (sit > 360 || exe < 30)) bgColor = QColor(0xFF8C00); // 深橙：熬夜+久坐/运动不足
-        else if (sit > 360 || exe < 30)             bgColor = QColor(0xFFB347); // 橙：久坐/运动不足
-        else if (stayUp)                            bgColor = QColor(0xFFD93D); // 黄：熬夜
-        else if (oversleep)                         bgColor = QColor(0xC8A2C8); // 紫：懒觉
-        else if (score >= 3)                        bgColor = QColor(0x6BCB77); // 绿：良好
-        else                                        bgColor = QColor(0x4D96FF); // 蓝：正常
+        else if (oversleep || score == 0)           bgColor = QColor(0xC8A2C8); // 紫：懒觉
+        else if (score == 1)                        bgColor = QColor(0xFFFF66); //橙：一分：小于6h或大于10h
+        else if (score == 2)                        bgColor = QColor(0x1CFCF4); //蓝：两分：6-7h或9-10h
+        else if (score == 3)                        bgColor = QColor(0x6BCB77); // 绿：三分，7-9分
 
         fmt.setBackground(QBrush(bgColor)); //显式用 QBrush
         fmt.setForeground(QBrush(Qt::black)); //设置前景色(文字颜色)作为保底，保证文字可读

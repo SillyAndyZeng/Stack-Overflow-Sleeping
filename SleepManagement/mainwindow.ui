@@ -27,8 +27,8 @@
    <widget class="QLabel" name="label_nap">
     <property name="geometry">
      <rect>
-      <x>393</x>
-      <y>312</y>
+      <x>250</x>
+      <y>490</y>
       <width>45</width>
       <height>20</height>
      </rect>
@@ -40,9 +40,9 @@
    <widget class="QSpinBox" name="spinBox_nap">
     <property name="geometry">
      <rect>
-      <x>440</x>
-      <y>310</y>
-      <width>70</width>
+      <x>297</x>
+      <y>490</y>
+      <width>131</width>
       <height>22</height>
      </rect>
     </property>
@@ -53,8 +53,8 @@
    <widget class="QLabel" name="label_exercise">
     <property name="geometry">
      <rect>
-      <x>393</x>
-      <y>352</y>
+      <x>250</x>
+      <y>520</y>
       <width>45</width>
       <height>20</height>
      </rect>
@@ -66,9 +66,9 @@
    <widget class="QSpinBox" name="spinBox_exercise">
     <property name="geometry">
      <rect>
-      <x>440</x>
-      <y>350</y>
-      <width>70</width>
+      <x>297</x>
+      <y>520</y>
+      <width>131</width>
       <height>22</height>
      </rect>
     </property>
@@ -76,8 +76,8 @@
    <widget class="QLabel" name="label_sit">
     <property name="geometry">
      <rect>
-      <x>393</x>
-      <y>382</y>
+      <x>250</x>
+      <y>550</y>
       <width>45</width>
       <height>20</height>
      </rect>
@@ -89,9 +89,9 @@
    <widget class="QSpinBox" name="spinBox_sit">
     <property name="geometry">
      <rect>
-      <x>440</x>
-      <y>380</y>
-      <width>70</width>
+      <x>297</x>
+      <y>550</y>
+      <width>131</width>
       <height>22</height>
      </rect>
     </property>
@@ -99,10 +99,10 @@
    <widget class="QPushButton" name="btn_sleep">
     <property name="geometry">
      <rect>
-      <x>40</x>
-      <y>340</y>
-      <width>181</width>
-      <height>41</height>
+      <x>30</x>
+      <y>380</y>
+      <width>161</width>
+      <height>111</height>
      </rect>
     </property>
     <property name="text">
@@ -112,10 +112,10 @@
    <widget class="QPushButton" name="btn_wake">
     <property name="geometry">
      <rect>
-      <x>40</x>
-      <y>410</y>
-      <width>181</width>
-      <height>41</height>
+      <x>30</x>
+      <y>510</y>
+      <width>161</width>
+      <height>111</height>
      </rect>
     </property>
     <property name="text">
@@ -139,8 +139,8 @@ AI分析周报</string>
    <widget class="QPushButton" name="btn_show_chart">
     <property name="geometry">
      <rect>
-      <x>710</x>
-      <y>263</y>
+      <x>740</x>
+      <y>300</y>
       <width>71</width>
       <height>31</height>
      </rect>
@@ -275,8 +275,8 @@ AI分析周报</string>
    <widget class="QLineEdit" name="lineEdit_duration_disp">
     <property name="geometry">
      <rect>
-      <x>260</x>
-      <y>250</y>
+      <x>30</x>
+      <y>340</y>
       <width>113</width>
       <height>31</height>
      </rect>
@@ -285,8 +285,8 @@ AI分析周报</string>
    <widget class="QLabel" name="label_4">
     <property name="geometry">
      <rect>
-      <x>270</x>
-      <y>220</y>
+      <x>40</x>
+      <y>320</y>
       <width>101</width>
       <height>21</height>
      </rect>
@@ -335,9 +335,9 @@ AI分析周报</string>
    <widget class="QPushButton" name="btn_clear_data">
     <property name="geometry">
      <rect>
-      <x>740</x>
+      <x>710</x>
       <y>10</y>
-      <width>101</width>
+      <width>131</width>
       <height>41</height>
      </rect>
     </property>
@@ -349,9 +349,9 @@ AI分析周报</string>
    <widget class="QPushButton" name="btn_settings">
     <property name="geometry">
      <rect>
-      <x>600</x>
-      <y>10</y>
-      <width>101</width>
+      <x>710</x>
+      <y>80</y>
+      <width>131</width>
       <height>41</height>
      </rect>
     </property>
@@ -362,8 +362,8 @@ AI分析周报</string>
    <widget class="QPushButton" name="btn_keyboard">
     <property name="geometry">
      <rect>
-      <x>470</x>
-      <y>10</y>
+      <x>730</x>
+      <y>240</y>
       <width>101</width>
       <height>41</height>
      </rect>
