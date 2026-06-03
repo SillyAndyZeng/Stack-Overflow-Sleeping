@@ -91,6 +91,8 @@ private:
     QList<QGraphicsOpacityEffect*> m_displayEffects;
     // 【新增】启动时用户选择"退出程序"的标记
     bool m_shouldQuitOnStart = false;
+    // 【新增】程序主动退出标记，防止 closeEvent 误弹托盘通知
+    bool m_isQuitting = false;
     // 新增：告诉编译器有这几个私有辅助函数
     QString dataDir();
     void refreshCalendarColors();

@@ -1,4 +1,5 @@
 #include "mainwindow.h" // 引入对应的头文件声明
+#include <QApplication>  // 用于 qApp 宏和 aboutToQuit 信号
 #include "ui_mainwindow.h"  //引入由 mainwindow.ui 编译生成的底层界面头文件，不引它就无法通过 ui-> 指针访问控件
 #include "achievement_manager.h"
 #include "sleep_core.h"       // 算分引擎
@@ -252,6 +253,11 @@ MainWindow::MainWindow(QWidget *parent)
     // 启动时强制显示欢迎说明书（首次启动必弹）
     // 如果用户选择了"退出程序"，设置标记供 main() 判断
     m_shouldQuitOnStart = showWelcomeDialog(true);
+
+    // 监听程序即将退出信号，确保 closeEvent 不误弹托盘通知（覆盖所有退出路径）
+    connect(qApp, &QApplication::aboutToQuit, this, [this]() {
+        m_isQuitting = true;
+    });
 }
 MainWindow::~MainWindow()
 {
@@ -355,15 +361,15 @@ QString MainWindow::buildManualHtml()
 // ==========================================
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    if (m_notificationMgr) {
-        hide();
-        m_notificationMgr->showGenericNotification("💤 睡眠守护",
-            "程序已最小化到系统托盘，守护仍在继续～");
-        event->ignore(); // 不真正关闭
-    } else {
-        // 如果还没初始化好，正常关闭
+    // 如果程序正在主动退出，不弹托盘通知，直接关闭
+    if (!m_notificationMgr || m_isQuitting) {
         event->accept();
+        return;
     }
+    hide();
+    m_notificationMgr->showGenericNotification("💤 睡眠守护",
+        "程序已最小化到系统托盘，守护仍在继续～");
+    event->ignore(); // 不真正关闭
 }
 
 // ==========================================
