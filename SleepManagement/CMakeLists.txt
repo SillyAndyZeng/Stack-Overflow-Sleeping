@@ -41,7 +41,12 @@ if(APPLE)#这里注意写了对于系统的判断，关键改动，否则windows
         COMPILE_FLAGS "-fobjc-arc"
     )
 endif()
-
+if(WIN32)
+    # Windows 下用 WH_KEYBOARD_LL 低级键盘钩子统计全局按键次数
+    list(APPEND PROJECT_SOURCES
+        key_monitor_win.cpp
+    )
+endif()
 qt_add_executable(SleepManagement
     WIN32 MACOSX_BUNDLE
     ${PROJECT_SOURCES}
@@ -59,7 +64,10 @@ if(APPLE)
     find_library(COCOA_LIBRARY Cocoa)
     target_link_libraries(SleepManagement PRIVATE ${COCOA_LIBRARY})
 endif()
-
+if(WIN32)
+    # SetWindowsHookEx / CallNextHookEx 等 API 位于 user32
+    target_link_libraries(SleepManagement PRIVATE user32)
+endif()
 install(TARGETS SleepManagement
     BUNDLE  DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
