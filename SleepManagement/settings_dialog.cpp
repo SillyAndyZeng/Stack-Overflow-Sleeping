@@ -266,9 +266,9 @@ void SettingsDialog::onGeneralSleepChanged() {
     // 2. 记住起床时间框当前的选中值
     double oldWakeTime = m_spGeneralWake->currentData().toDouble();
 
-    // 3. 动态限制起床时间：最早不能早过入睡时间。
+    // 3. 动态限制起床时间：最早不能早过入睡时间之后1h。
     // 允许往后推 16 个小时（比如 23:00 入睡，则起床选项自动生成 23:00 一直到次日 15:00）
-    initTimeComboBox(m_spGeneralWake, sleepTime, sleepTime + 16);
+    initTimeComboBox(m_spGeneralWake, sleepTime + 1, sleepTime + 16);
 
     // 4. 尝试恢复原来的选择
     int index = m_spGeneralWake->findData(oldWakeTime);
@@ -291,9 +291,9 @@ void SettingsDialog::onStayupBeginChanged() {
     // 2. 记住熬夜结束时间框当前的选中值
     double oldEndTime = m_spStayupEnd->currentData().toDouble();
 
-    // 3. 动态限制熬夜结束时间：最早不能早过起始时间。
+    // 3. 动态限制熬夜结束时间：最早不能早过起始时间之后1h。
     // 熬夜区间通常最长不超过 12 小时（如 0:00 开始，最晚选到次日中午 12:00）
-    initTimeComboBox(m_spStayupEnd, beginTime, beginTime + 12);
+    initTimeComboBox(m_spStayupEnd, beginTime + 1, beginTime + 12);
 
     // 4. 尝试恢复原来的选择
     int index = m_spStayupEnd->findData(oldEndTime);
