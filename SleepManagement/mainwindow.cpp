@@ -1452,16 +1452,25 @@ void MainWindow::on_btn_settings_clicked()
             // 立即应用到全局变量
             applyUserConfig(newCfg);
 
+            // 【新增工具】：将 double 转为 "HH:mm" 格式的字符串的lambda表达式
+            auto formatTime = [](double val) {
+                int h = static_cast<int>(val);
+                int m = (val - h) > 0 ? 30 : 0;
+                // 用 0 补齐两位数，例如把 "8:0" 变成 "08:00"
+                return QString("%1:%2").arg(h, 2, 10, QChar('0')).arg(m, 2, 10, QChar('0'));
+            };
+
+            // 💡 替换弹窗逻辑，去掉写死的 :00，改为调用 toDouble() 和 formatTime 工具
             QMessageBox::information(this, "设置已保存",
                                      QString("偏好设置已更新！\n\n"
-                                             "一般入睡时间：%1:00\n"
-                                             "一般起床时间：%2:00\n"
-                                             "熬夜判定区间：%3:00 ~ %4:00\n\n"
+                                             "一般入睡时间：%1\n"
+                                             "一般起床时间：%2\n"
+                                             "熬夜判定区间：%3 ~ %4\n\n"
                                              "之后的打卡将按新标准评估。")
-                                         .arg(newCfg["general_sleep_hour"].toInt())
-                                         .arg(newCfg["general_wake_hour"].toInt())
-                                         .arg(newCfg["stayup_begin"].toInt())
-                                         .arg(newCfg["stayup_end"].toInt()));
+                                         .arg(formatTime(newCfg["general_sleep_hour"].toDouble()))
+                                         .arg(formatTime(newCfg["general_wake_hour"].toDouble()))
+                                         .arg(formatTime(newCfg["stayup_begin"].toDouble()))
+                                         .arg(formatTime(newCfg["stayup_end"].toDouble())));
         } else {
             QMessageBox::warning(this, "保存失败", "无法写入配置文件，请检查磁盘权限。");
         }
