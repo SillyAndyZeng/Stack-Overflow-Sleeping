@@ -36,10 +36,11 @@
 #define daysleep_rewardScore 1
 #define daysleep_judgethreshold 15
 #define daySpiltHour 6
-inline int stayupBegin = 0;
-inline int stayupEnd = 8;
-inline int generalSleep_hour = 23; // 一般入睡时间，初始化23
-inline int generalWake_hour = 8;
+// 变量修改为double类型，方便存储半点时间
+inline double stayupBegin = 0.0;
+inline double stayupEnd = 8.0;
+inline double generalSleep_hour = 23.0; // 一般入睡时间，初始化23
+inline double generalWake_hour = 8.0;
 using namespace std;
 
 //作息日计算函数
@@ -119,14 +120,19 @@ public:
 
     bool isStayUpLate() { //判断是否熬夜，如果在设定的0点和6点间入睡就算作熬夜
         //这个是否熬夜和是否补觉的判断标准，初始让用户自己输入，后面可以根据记录的数据取平均作为建议
+        double actualSleepTime = Sleep_hour * 60 + Sleep_min;
+        double actualstayupBegin = 60 * stayupBegin;
+        // 计算熬夜起始点、熬夜终止点(根据熬夜区间是否跨零点判断是否+24h)、真正入睡时间点的分钟数值，比较
         // 熬夜区间跨过 0 点，例如 23:00 - 次日 08:00
         if (stayupBegin > stayupEnd) {
-            stayUp = (Sleep_hour >= stayupBegin || Sleep_hour < stayupEnd);
+            double actualstayupEnd = 60 * (stayupEnd + 24);
+            stayUp = (actualSleepTime >= actualstayupBegin || actualSleepTime < actualstayupEnd);
             return stayUp;
         }
         // 熬夜区间不跨过0点，比如1:00-5:00，且并非没睡觉
         else if(!noNightSleep){
-            stayUp = (Sleep_hour >= stayupBegin && Sleep_hour < stayupEnd);
+            double actualstayupEnd = 60 * stayupEnd;
+            stayUp = (actualSleepTime >= actualstayupBegin || actualSleepTime < actualstayupEnd);
             return stayUp;
         }
         //没睡觉

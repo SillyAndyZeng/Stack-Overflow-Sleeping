@@ -21,10 +21,10 @@
 QJsonObject defaultUserConfig()
 {
     QJsonObject cfg;
-    cfg["general_sleep_hour"] = 23;   // 一般入睡 23:00
-    cfg["general_wake_hour"]  = 8;    // 一般起床 08:00
-    cfg["stayup_begin"]       = 0;    // 熬夜从 00:00 开始
-    cfg["stayup_end"]         = 8;    // 熬夜到 08:00 结束
+    cfg["general_sleep_hour"] = 23.0;   // 一般入睡 23:00
+    cfg["general_wake_hour"]  = 8.0;    // 一般起床 08:00
+    cfg["stayup_begin"]       = 0.0;    // 熬夜从 00:00 开始
+    cfg["stayup_end"]         = 8.0;    // 熬夜到 08:00 结束
     return cfg;
 }
 
@@ -75,15 +75,44 @@ void applyUserConfig(const QJsonObject &config)
 {
     // 更新 sleep_core.h 中的全局变量
     // config["stayup_begin"] 是从账本里根据名字找出对应的值
-    // .toInt(0) 代表把它翻译成整数数字。如果因为某种意外找不到这个键，就用数字 0 代替
-    stayupBegin       = config["stayup_begin"].toInt(0);
-    stayupEnd         = config["stayup_end"].toInt(8);
-    generalSleep_hour = config["general_sleep_hour"].toInt(23);
-    generalWake_hour  = config["general_wake_hour"].toInt(8);
+    // .toDouble 代表把它翻译成浮点数数字。如果因为某种意外找不到这个键，就用数字 0 代替
+    stayupBegin       = config["stayup_begin"].toDouble(0.0);
+    stayupEnd         = config["stayup_end"].toDouble(8.0);
+    generalSleep_hour = config["general_sleep_hour"].toDouble(23.0);
+    generalWake_hour  = config["general_wake_hour"].toDouble(8.0);
+}
+
+// =========================================
+// 辅助函数：用来快速给下拉框填充 00:00 到 23:30
+// ==========================================
+// 中间两个参数是为了限制下拉单选框生成的时间的范围（只能为整数，方便for循环），用户不用修改，第三个参数是步长，后期可以开发者修改
+// 最后一个参数是控制生成不连续的时间段的，第二个时间段生成时就不要清空box了
+void SettingsDialog::initTimeComboBox(QComboBox *box, int start, int end, bool _clean) {
+    // 【核心安全防护】暂时阻塞该组合框的信号，防止清除/添加项时误触发 currentIndexChanged 导致死循环
+    bool oldState = box->blockSignals(true);
+
+    if (_clean) box->clear(); //如果指定不清空就不清空
+    // i指的是第几个"半小时"
+    for (int i = start * 2; i < end * 2; ++i) {
+        double actualHour = i * 0.5;
+        while (actualHour >= 24.0) {
+            actualHour -= 24.0; // 超过 24 点的时间（如 25.5）自动循环回第二天（1.5）
+        }
+
+        // 格式化显示文本，例如 23.5 -> "23:30"
+        int hour = static_cast<int>(actualHour);
+        int minute = (actualHour - hour) > 0 ? 30 : 0;
+        QString text = QString("%1:%2").arg(hour, 2, 10, QChar('0')).arg(minute, 2, 10, QChar('0'));
+
+        // 绑定的数据依然是 0.0 ~ 23.5 之间的标准浮点数
+        box->addItem(text, actualHour);
+    }
+
+    box->blockSignals(oldState); // 恢复原有信号状态
 }
 
 // ============================================================
-//  SettingsDialog 自定义设置弹窗内部逻辑
+//  定义SettingsDialog类对象SettingsDialog 自定义设置弹窗内部逻辑
 // ============================================================
 SettingsDialog::SettingsDialog(const QJsonObject &currentConfig, QWidget *parent)
     : QDialog(parent)
@@ -112,6 +141,12 @@ SettingsDialog::SettingsDialog(const QJsonObject &currentConfig, QWidget *parent
     hintLabel->setWordWrap(true);
     mainLayout->addWidget(hintLabel);
 
+    // ========重要！给控件分配内存==========
+    m_spGeneralSleep = new QComboBox(this);
+    m_spGeneralWake = new QComboBox(this);
+    m_spStayupBegin = new QComboBox(this);
+    m_spStayupEnd = new QComboBox(this);
+
     // ---- "一般作息时间" 分组 ----
     auto *generalGroup = new QGroupBox("一般作息时间", this);
     generalGroup->setStyleSheet(
@@ -123,22 +158,25 @@ SettingsDialog::SettingsDialog(const QJsonObject &currentConfig, QWidget *parent
     generalForm->setSpacing(8);
     generalForm->setContentsMargins(10, 16, 10, 10);
 
-    // 创建一个微调输入框控件（就是带上下箭头的数字框）
-    m_spGeneralSleep = new QSpinBox(this);
-    // 限制输入范围是 0 到 24，防止用户在小时栏里乱填个 99 或者负数
-    m_spGeneralSleep->setRange(0, 24);
-    m_spGeneralSleep->setSuffix(" :00");
-    m_spGeneralSleep->setFixedSize(100, 30);
-    // 利用 ->setValue() 把从currentconfig里读到的值填到刚才创建的输入框里。
-    m_spGeneralSleep->setValue(currentConfig["general_sleep_hour"].toInt(23));
+    //原本使用spinBox，但是为了只用小时就能实现整点半点，换成了现在的下拉单选框
+    //一般入睡时间
+    //为这个下拉单选框填写整点/半点选项；入睡时间限制20：00-4:30
+    // 在这里实现的都是构造函数里默认的范围，后面起床时间和熬夜终止点会动态变化
+    initTimeComboBox(m_spGeneralSleep, 20, 29);
+    //initTimeComboBox(m_spGeneralSleep, 0, 5, 0.5, false);
+    // 读取当前配置
+    double sleepVal = currentConfig["general_sleep_hour"].toDouble(23.0);
+    // ！让 Qt 自动查找哪个选项背后藏着 sleepVal 这个数字，并选择到这个选项上
+    m_spGeneralSleep->setCurrentIndex(m_spGeneralSleep->findData(sleepVal));
     generalForm->addRow("😴 一般入睡时间：", m_spGeneralSleep);
 
     // 一般起床时间
-    m_spGeneralWake = new QSpinBox(this);
-    m_spGeneralWake->setRange(4, 12);
-    m_spGeneralWake->setSuffix(" :00");
-    m_spGeneralWake->setFixedSize(100, 30);
-    m_spGeneralWake->setValue(currentConfig["general_wake_hour"].toInt(8));
+    // 通过信号与槽实现：填写/读取了入睡时间后，起床时间只能晚于入睡时间
+    initTimeComboBox(m_spGeneralWake, 4, 12); //起床时间限制4：00-11：30
+    //读取配置并转换成索引
+    double wakeVal = currentConfig["general_wake_hour"].toDouble(8.0);
+    // 自动寻找 wakeVal 对应的选项
+    m_spGeneralWake->setCurrentIndex(m_spGeneralWake->findData(wakeVal));
     generalForm->addRow("🌅 一般起床时间：", m_spGeneralWake);
 
     // 把分组放入布局管理器（Layout）集中展示在界面上
@@ -155,21 +193,29 @@ SettingsDialog::SettingsDialog(const QJsonObject &currentConfig, QWidget *parent
     stayupForm->setSpacing(8);
     stayupForm->setContentsMargins(10, 16, 10, 10);
 
-    m_spStayupBegin = new QSpinBox(this);
-    m_spStayupBegin->setRange(0, 23);
-    m_spStayupBegin->setSuffix(" :00");
-    m_spStayupBegin->setFixedSize(100, 30);
-    m_spStayupBegin->setValue(currentConfig["stayup_begin"].toInt(0));
+    //熬夜判定时间起始点
+
+    initTimeComboBox(m_spStayupBegin, 21, 29); //熬夜判定区间可设置为21:00-4:30
+    //initTimeComboBox(m_spStayupBegin, 0, 5, false);
+    double stayupBVal = currentConfig["stayup_begin"].toDouble(0.0);
+    // 自动寻找 stayupBVal 对应的选项
+    m_spStayupBegin->setCurrentIndex(m_spStayupBegin->findData(stayupBVal));
     stayupForm->addRow("🌙 熬夜起始时间：", m_spStayupBegin);
 
-    m_spStayupEnd = new QSpinBox(this);
-    m_spStayupEnd->setRange(0, 12);
-    m_spStayupEnd->setSuffix(" :00");
-    m_spStayupEnd->setFixedSize(100, 30);
-    m_spStayupEnd->setValue(currentConfig["stayup_end"].toInt(8));
+    //熬夜判定时间终止点
+
+    initTimeComboBox(m_spStayupEnd, 22, 36); //最多可设置为22：00-11:30
+    //initTimeComboBox(m_spStayupEnd, 0, 12, 0.5, false);
+    double stayupEVal = currentConfig["stayup_end"].toDouble(8.0);
+    // 自动寻找 stayupupEVal 对应的选项
+    m_spStayupEnd->setCurrentIndex(m_spStayupEnd->findData(stayupEVal));
     stayupForm->addRow("🌤  熬夜结束时间：", m_spStayupEnd);
 
     mainLayout->addWidget(stayupGroup);
+
+    // -------【新增】绑定信号与槽----------
+    connect(m_spGeneralSleep, &QComboBox::currentIndexChanged, this, &SettingsDialog::onGeneralSleepChanged);
+    connect(m_spStayupBegin, &QComboBox::currentIndexChanged, this, &SettingsDialog::onStayupBeginChanged);
 
     // ---- 按钮 ----
     auto *btnLayout = new QHBoxLayout();
@@ -204,9 +250,61 @@ SettingsDialog::SettingsDialog(const QJsonObject &currentConfig, QWidget *parent
 QJsonObject SettingsDialog::getConfig() const
 {
     QJsonObject cfg;
-    cfg["general_sleep_hour"] = m_spGeneralSleep->value();
-    cfg["general_wake_hour"]  = m_spGeneralWake->value();
-    cfg["stayup_begin"]       = m_spStayupBegin->value();
-    cfg["stayup_end"]         = m_spStayupEnd->value();
+    // currentData().toDouble() 可以直接把刚才藏在选中项里的真实小时数字完整取出来
+    cfg["general_sleep_hour"] = m_spGeneralSleep->currentData().toDouble();
+    cfg["general_wake_hour"]  = m_spGeneralWake->currentData().toDouble();
+    cfg["stayup_begin"]       = m_spStayupBegin->currentData().toDouble();
+    cfg["stayup_end"]         = m_spStayupEnd->currentData().toDouble();
     return cfg;
+}
+
+// 槽函数定义：当一般入睡时间被修改时，一般起床时间的范围变化
+void SettingsDialog::onGeneralSleepChanged() {
+    // 1. 从下拉框里获取当前选中的入睡时间
+    double sleepTime = m_spGeneralSleep->currentData().toDouble();
+
+    // 2. 记住起床时间框当前的选中值
+    double oldWakeTime = m_spGeneralWake->currentData().toDouble();
+
+    // 3. 动态限制起床时间：最早不能早过入睡时间。
+    // 允许往后推 16 个小时（比如 23:00 入睡，则起床选项自动生成 23:00 一直到次日 15:00）
+    initTimeComboBox(m_spGeneralWake, sleepTime, sleepTime + 16);
+
+    // 4. 尝试恢复原来的选择
+    int index = m_spGeneralWake->findData(oldWakeTime);
+    if (index != -1) {
+        m_spGeneralWake->setCurrentIndex(index);
+    } else {
+        // 如果原本选的时间不合法了（被裁掉了），默认设为入睡后 8 小时
+        double defaultWake = sleepTime + 8.0;
+        if (defaultWake >= 24.0) defaultWake -= 24.0;
+
+        int defIdx = m_spGeneralWake->findData(defaultWake);
+        if (defIdx != -1) m_spGeneralWake->setCurrentIndex(defIdx);
+    }
+}
+
+void SettingsDialog::onStayupBeginChanged() {
+    // 1. 获取当前选中的熬夜起始时间
+    double beginTime = m_spStayupBegin->currentData().toDouble();
+
+    // 2. 记住熬夜结束时间框当前的选中值
+    double oldEndTime = m_spStayupEnd->currentData().toDouble();
+
+    // 3. 动态限制熬夜结束时间：最早不能早过起始时间。
+    // 熬夜区间通常最长不超过 12 小时（如 0:00 开始，最晚选到次日中午 12:00）
+    initTimeComboBox(m_spStayupEnd, beginTime, beginTime + 12);
+
+    // 4. 尝试恢复原来的选择
+    int index = m_spStayupEnd->findData(oldEndTime);
+    if (index != -1) {
+        m_spStayupEnd->setCurrentIndex(index);
+    } else {
+        // 如果不合法了，默认设为起始时间后 4 小时
+        double defaultEnd = beginTime + 4.0;
+        if (defaultEnd >= 24.0) defaultEnd -= 24.0;
+
+        int defIdx = m_spStayupEnd->findData(defaultEnd);
+        if (defIdx != -1) m_spStayupEnd->setCurrentIndex(defIdx);
+    }
 }
