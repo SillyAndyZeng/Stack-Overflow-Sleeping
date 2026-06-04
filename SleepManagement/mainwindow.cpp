@@ -1433,13 +1433,16 @@ void MainWindow::on_btn_show_chart_clicked()
 }
 
 // ==========================================
-// ⚙️ 用户设置按钮：打开自定义设置对话框
+// 用户设置按钮：打开自定义设置对话框
 // ==========================================
 void MainWindow::on_btn_settings_clicked()
 {
+    // 拼接出配置文件的完整存放路径
     QString cfgPath = dataDir() + "/config.json";
+    // 调用全局函数去读文件。如果文件在，currentConfig 就是老配置；如果不在，就是默认设置
     QJsonObject currentCfg = loadUserConfig(cfgPath);
 
+    // 【创建界面】把读出来的配置塞给弹窗，弹窗构造函数在后台把数字填进那些数字框里
     SettingsDialog dialog(currentCfg, this);
     if (dialog.exec() == QDialog::Accepted) {
         QJsonObject newCfg = dialog.getConfig();
