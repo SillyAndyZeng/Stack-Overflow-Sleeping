@@ -6,6 +6,7 @@
 #include <QSpinBox>
 #include <QLabel>
 #include <QJsonObject>
+#include <QTimeEdit>   // 新增
 
 // ============================================================
 // 用户配置读写接口（管理 sleep_core.h 中的全局变量）

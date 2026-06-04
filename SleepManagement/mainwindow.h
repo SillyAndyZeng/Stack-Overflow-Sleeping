@@ -6,6 +6,10 @@
 #include <QCloseEvent>
 #include <QPushButton>
 #include <QGraphicsOpacityEffect>
+//新增：窗口缩放
+#include <QHash>
+#include <QRect>
+#include <QSize>
 // 新增：引入网络和JSON相关的头文件
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -76,6 +80,9 @@ private slots:
 protected:
     // 【新增：拦截关闭事件，最小化到系统托盘】
     void closeEvent(QCloseEvent *event) override;
+    //【新增：为了调节尺寸】
+    void resizeEvent(QResizeEvent *event) override;
+    void showEvent(QShowEvent *event) override;     // 新增
 
 private:
     // 核心指针：指向由 .ui 文件编译生成的界面类对象。
@@ -111,6 +118,12 @@ private:
     bool showWelcomeDialog(bool force = false);
     // 【新增】生成说明书 HTML 内容
     static QString buildManualHtml();
+    // 【窗口缩放】记录原始控件位置，用于 resize 时按比例重排
+    QHash<QWidget*, QRect> m_baseGeometry;
+    QSize m_baseSize = QSize(900, 680);
+
+    void rememberBaseGeometry();
+    void applyResponsiveGeometry();                     // 新增：统一的适配函数
 };
 
 #endif // MAINWINDOW_H // 结束宏保护

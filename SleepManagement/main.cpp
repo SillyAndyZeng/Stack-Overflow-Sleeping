@@ -8,6 +8,7 @@
 //argc 是命令行参数个数，argv 是具体的参数数组
 int main(int argc, char *argv[])
 {
+
     ///实例化 Qt 应用程序对象。它负责管理整个图形界面的控制流、初始化各种底层资源，
     // 以及处理最核心的”事件循环”（比如分发鼠标点击、键盘输入等系统消息）
     QApplication a(argc, argv);

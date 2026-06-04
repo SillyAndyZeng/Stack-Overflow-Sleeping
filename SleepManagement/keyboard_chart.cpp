@@ -7,7 +7,7 @@ namespace {
     const int MARGIN_L = 50;
     const int MARGIN_R = 20;
     const int MARGIN_T = 30;
-    const int MARGIN_B = 35;
+    const int MARGIN_B = 42;
     const QColor COLOR_GRID(0xE0, 0xE0, 0xE0);
     const QColor COLOR_AXIS(0x66, 0x66, 0x66);
     const QColor COLOR_FILL(0xF5, 0xF5, 0xF5);
@@ -109,20 +109,26 @@ void KeyActivityChart::paintEvent(QPaintEvent *)
     }
     p.restore();
 
-    // X 轴标签
+    // 修改X 轴标签：从右(现在)向左均匀取点，按文字实际宽度给足空间，避免裁剪与拥挤
     p.save();
-    QFont lf = font(); lf.setPointSize(7); p.setFont(lf); p.setPen(COLOR_AXIS);
-    int labelStep = std::max(1, n / 10);
-    for (int i = 0; i < n; i += labelStep) {
-        double x = area.left() + i * (barW + gap) + (barW + gap) / 2;
-        int minsAgo = n - 1 - i;
+    QFont lf = font(); lf.setPointSize(8); p.setFont(lf); p.setPen(COLOR_AXIS);
+    QFontMetrics fm(lf);
+    int desiredLabels = qBound(4, area.width() / 90, 8);   // 大约 4~8 个标签
+    int labelStep = std::max(1, n / desiredLabels);
+    for (int k = 0; k < n; k += labelStep) {
+        int idx = n - 1 - k;                                // 从右往左，保证"现在"一定出现
+        double x = area.left() + idx * (barW + gap) + (barW + gap) / 2;
+        int minsAgo = k;
         QString lbl;
-        if (minsAgo == 0) lbl = "现在";
-        else if (minsAgo < 60) lbl = QString("%1分钟前").arg(minsAgo);
-        else lbl = QString("%1小时前").arg(minsAgo / 60);
-        p.drawText(QRectF(x - gap, area.bottom() + 4, gap * 3, 16), Qt::AlignCenter, lbl);
+        if (minsAgo == 0)       lbl = "现在";
+        else if (minsAgo < 60)  lbl = QString("%1分钟前").arg(minsAgo);
+        else                    lbl = QString("%1小时前").arg(minsAgo / 60);
+        int w = fm.horizontalAdvance(lbl) + 10;             // 按文字真实宽度撑开矩形
+        p.drawText(QRectF(x - w / 2.0, area.bottom() + 6, w, 18),
+                   Qt::AlignCenter, lbl);
     }
     p.restore();
+
 }
 
 // ============================================================
