@@ -37,6 +37,9 @@
 #include <QFileDialog>
 // 用于流式读取外部文件数据
 #include <QTextStream>
+//用于窗口缩放
+#include <QResizeEvent>
+#include <QShowEvent>
 
 /*
 当界面上的按钮被点击时，具体要做什么计算、弹出什么提示，全部写在这里。
@@ -55,6 +58,7 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow) // 动态分配内存，实例化负责管理 UI 控件的界面类
 {
     ui->setupUi(this); // 核心！这个函数把在图形化界面里拖拽的所有按钮、日历、输入框等，真正地绘制、布置到当前的这个MainWindow窗口上
+
 
     // 限制日历最大可选日期为今天，未来的日期将被置灰且无法点击
     ui->calendarWidget->setMaximumDate(QDate::currentDate());
@@ -128,7 +132,7 @@ MainWindow::MainWindow(QWidget *parent)
     // ui->btn_save_report->setVisible(false);
 
     // 添加"？"帮助按钮
-    auto *btnHelp = new QPushButton("?", this);
+    auto *btnHelp = new QPushButton("?", ui->centralwidget);//改成ui->centralwidget为了缩放
     btnHelp->setObjectName("btn_help");
     btnHelp->setFixedSize(28, 28);
     btnHelp->move(850, 12);
@@ -137,10 +141,8 @@ MainWindow::MainWindow(QWidget *parent)
         "font-size: 16px; font-weight: bold; border: none; }"
         "QPushButton:hover { background-color: #4D96FF; color: white; }");
     connect(btnHelp, &QPushButton::clicked, this, [this]() {
-        if (showWelcomeDialog(true)) {
-            m_isQuitting = true;  // 同步设置，确保 closeEvent 检测到
+        if (showWelcomeDialog(true))
             QApplication::quit();
-        }
     });
 
     refreshCalendarColors();//新增:启动时加载历史颜色
@@ -195,7 +197,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // ==========================================================
     // 【新增：PDF 导出按钮】放在 AI 文本框下方
-    auto *btnExportPdf = new QPushButton("📄 导出 PDF", this);
+    auto *btnExportPdf = new QPushButton("📄 导出 PDF", ui->centralwidget);//改成ui->centralwidget为了缩放
     btnExportPdf->setObjectName("btn_export_pdf");
     btnExportPdf->setGeometry(740, 635, 101, 28);
     btnExportPdf->setStyleSheet(
@@ -223,10 +225,8 @@ MainWindow::MainWindow(QWidget *parent)
         activateWindow();
         raise();
         // 从托盘恢复时按 config 决定是否弹窗，若用户选退出则关闭程序
-        if (showWelcomeDialog()) {
-            m_isQuitting = true;  // 同步设置，确保 closeEvent 检测到
+        if (showWelcomeDialog())
             QApplication::quit();
-        }
     });
     m_notificationMgr->startMonitoring();
     // ==========================================================
@@ -262,6 +262,14 @@ MainWindow::MainWindow(QWidget *parent)
     connect(qApp, &QApplication::aboutToQuit, this, [this]() {
         m_isQuitting = true;
     });
+    // ==========================================
+    // 窗口缩放：记录初始控件坐标
+    // 注意：必须放在所有动态创建的按钮之后，例如 btnHelp、btnExportPdf 之后
+    // ==========================================
+    setMinimumSize(600, 450);
+    rememberBaseGeometry();
+
+
 }
 MainWindow::~MainWindow()
 {
@@ -374,6 +382,83 @@ void MainWindow::closeEvent(QCloseEvent *event)
     m_notificationMgr->showGenericNotification("💤 睡眠守护",
         "程序已最小化到系统托盘，守护仍在继续～");
     event->ignore(); // 不真正关闭
+}
+// ==========================================
+// 窗口缩放
+// mainwindow.ui 目前使用的是绝对坐标 geometry。
+// 所以这里不再用 QGraphicsView 缩放整个界面，
+// 而是记录所有顶层子控件的原始 geometry，
+// 在窗口 resize 时按比例重新计算位置和大小。
+// ==========================================
+void MainWindow::rememberBaseGeometry()
+{
+    if (!ui || !ui->centralwidget)
+        return;
+
+    m_baseGeometry.clear();
+
+    // mainwindow.ui 里的设计尺寸是 900 x 680
+    // 如果后面你在 Qt Designer 里改了主窗口初始尺寸，这里也要同步改。
+    m_baseSize = QSize(900, 680);
+
+    const auto children = ui->centralwidget->findChildren<QWidget*>(
+        QString(),
+        Qt::FindDirectChildrenOnly
+        );
+
+    for (QWidget *w : children) {
+        if (!w)
+            continue;
+
+        m_baseGeometry.insert(w, w->geometry());
+    }
+}
+
+void MainWindow::applyResponsiveGeometry()
+{
+    if (!ui || !ui->centralwidget || m_baseGeometry.isEmpty())
+        return;
+
+    const QSize curSize = ui->centralwidget->size();
+
+    if (curSize.width() <= 0 || curSize.height() <= 0)
+        return;
+
+    const double sx = double(curSize.width()) / double(m_baseSize.width());
+    const double sy = double(curSize.height()) / double(m_baseSize.height());
+
+    for (auto it = m_baseGeometry.constBegin(); it != m_baseGeometry.constEnd(); ++it) {
+        QWidget *w = it.key();
+
+        if (!w)
+            continue;
+
+        const QRect r = it.value();
+
+        const int newX = qRound(r.x() * sx);
+        const int newY = qRound(r.y() * sy);
+        const int newW = qRound(r.width() * sx);
+        const int newH = qRound(r.height() * sy);
+
+        w->setGeometry(newX, newY, newW, newH);
+    }
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    applyResponsiveGeometry();
+}
+
+void MainWindow::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+
+    // 第一次 show 时窗口尺寸可能还没完全稳定，
+    // 所以延迟到事件循环空闲时再重排一次。
+    QTimer::singleShot(0, this, [this]() {
+        applyResponsiveGeometry();
+    });
 }
 
 // ==========================================

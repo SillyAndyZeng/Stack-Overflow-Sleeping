@@ -403,7 +403,7 @@ AI分析周报</string>
      <rect>
       <x>360</x>
       <y>10</y>
-      <width>231</width>
+      <width>261</width>
       <height>31</height>
      </rect>
     </property>
@@ -427,7 +427,7 @@ AI分析周报</string>
      <x>0</x>
      <y>0</y>
      <width>900</width>
-     <height>22</height>
+     <height>23</height>
     </rect>
    </property>
   </widget>
