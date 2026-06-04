@@ -17,6 +17,7 @@
 // 全局变量声明（声明在 sleep_core.h 里）
 // 默认值也在其中有设置
 
+//初始化默认参数
 QJsonObject defaultUserConfig()
 {
     QJsonObject cfg;
@@ -27,36 +28,44 @@ QJsonObject defaultUserConfig()
     return cfg;
 }
 
+//从硬盘加载参数
 QJsonObject loadUserConfig(const QString &configFilePath)
 {
-    QFile file(configFilePath);
+    QFile file(configFilePath); // 1. 创建一个文件操作对象，绑定传入的本地文件路径
+    // 2. 尝试以“只读”模式打开它。
+    // 如果打不开，返回默认设置，确保程序能继续
     if (!file.open(QIODevice::ReadOnly))
         return defaultUserConfig();
 
+    // 3. 如果打开成功，file.readAll() 会一次性把文件里所有的文本全部读到内存里
+    //QJsonDocument::fromJson() 会负责将这些文本解析、翻译成一个标准的 Qt JSON 文档结构
     QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
     file.close();
 
-    if (!doc.isObject())
-        return defaultUserConfig();
+    if (!doc.isObject()) // 6. 检查翻译出来的 JSON 格式对不对（是不是包含 {} 的完整对象）
+        return defaultUserConfig(); //如果格式错误，依旧返回默认设置
 
-    QJsonObject cfg = doc.object();
+    QJsonObject cfg = doc.object(); // 8. 格式完美无误，把文档转换成 QJsonObject 对象（也就是键值对账本）返回给调用者
 
     // 补全缺失的字段为默认值
     QJsonObject def = defaultUserConfig();
     for (auto it = def.begin(); it != def.end(); ++it) {
-        if (!cfg.contains(it.key()))
+        if (!cfg.contains(it.key())) //如果字段有缺失
             cfg[it.key()] = it.value();
     }
 
     return cfg;
 }
 
+// 当用户在界面点了保存，负责把新的参数刷新并固化到本地硬盘文件里。
 bool saveUserConfig(const QString &configFilePath, const QJsonObject &config)
 {
     QFile file(configFilePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
         return false;
 
+    // QJsonDocument doc(config)把装满新设置的 QJsonObject 账本包装进一个 QJsonDocument 转换工具里
+    // doc.toJson() 把内存里的 JSON 结构揉成一段普通的文本字符串，file.write真正写进硬盘文件
     file.write(QJsonDocument(config).toJson(QJsonDocument::Indented));
     file.close();
     return true;
@@ -65,6 +74,8 @@ bool saveUserConfig(const QString &configFilePath, const QJsonObject &config)
 void applyUserConfig(const QJsonObject &config)
 {
     // 更新 sleep_core.h 中的全局变量
+    // config["stayup_begin"] 是从账本里根据名字找出对应的值
+    // .toInt(0) 代表把它翻译成整数数字。如果因为某种意外找不到这个键，就用数字 0 代替
     stayupBegin       = config["stayup_begin"].toInt(0);
     stayupEnd         = config["stayup_end"].toInt(8);
     generalSleep_hour = config["general_sleep_hour"].toInt(23);
@@ -72,7 +83,7 @@ void applyUserConfig(const QJsonObject &config)
 }
 
 // ============================================================
-//  SettingsDialog
+//  SettingsDialog 自定义设置弹窗内部逻辑
 // ============================================================
 SettingsDialog::SettingsDialog(const QJsonObject &currentConfig, QWidget *parent)
     : QDialog(parent)
@@ -112,20 +123,25 @@ SettingsDialog::SettingsDialog(const QJsonObject &currentConfig, QWidget *parent
     generalForm->setSpacing(8);
     generalForm->setContentsMargins(10, 16, 10, 10);
 
+    // 创建一个微调输入框控件（就是带上下箭头的数字框）
     m_spGeneralSleep = new QSpinBox(this);
-    m_spGeneralSleep->setRange(18, 23);
+    // 限制输入范围是 0 到 24，防止用户在小时栏里乱填个 99 或者负数
+    m_spGeneralSleep->setRange(0, 24);
     m_spGeneralSleep->setSuffix(" :00");
     m_spGeneralSleep->setFixedSize(100, 30);
+    // 利用 ->setValue() 把从currentconfig里读到的值填到刚才创建的输入框里。
     m_spGeneralSleep->setValue(currentConfig["general_sleep_hour"].toInt(23));
     generalForm->addRow("😴 一般入睡时间：", m_spGeneralSleep);
 
+    // 一般起床时间
     m_spGeneralWake = new QSpinBox(this);
-    m_spGeneralWake->setRange(5, 12);
+    m_spGeneralWake->setRange(4, 12);
     m_spGeneralWake->setSuffix(" :00");
     m_spGeneralWake->setFixedSize(100, 30);
     m_spGeneralWake->setValue(currentConfig["general_wake_hour"].toInt(8));
     generalForm->addRow("🌅 一般起床时间：", m_spGeneralWake);
 
+    // 把分组放入布局管理器（Layout）集中展示在界面上
     mainLayout->addWidget(generalGroup);
 
     // ---- "熬夜判定区间" 分组 ----
@@ -165,6 +181,7 @@ SettingsDialog::SettingsDialog(const QJsonObject &currentConfig, QWidget *parent
         "QPushButton { background-color: #4D96FF; color: white; border-radius: 6px; "
         "font-size: 13px; font-weight: bold; }"
         "QPushButton:hover { background-color: #3A7BD5; }");
+    // 绑定：保存按钮发出的保存被点击的信号，绑定到QDialog的accept函数，这会让窗口关闭
     connect(saveBtn, &QPushButton::clicked, this, &QDialog::accept);
 
     auto *cancelBtn = new QPushButton("取消", this);
@@ -173,6 +190,7 @@ SettingsDialog::SettingsDialog(const QJsonObject &currentConfig, QWidget *parent
         "QPushButton { background-color: #E0E0E0; color: #333; border-radius: 6px; "
         "font-size: 13px; }"
         "QPushButton:hover { background-color: #D0D0D0; }");
+    // 绑定：取消按钮发出的取消被点击的信号，绑定到QDialog的reject函数，这也会让窗口关闭
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
 
     btnLayout->addWidget(saveBtn);
