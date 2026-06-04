@@ -3,6 +3,7 @@
 
 #pragma once
 #include <QDialog>
+#include <QComboBox> // 引入下拉单选框
 #include <QSpinBox>
 #include <QLabel>
 #include <QJsonObject>
@@ -35,11 +36,19 @@ public:
     // 返回用户修改后的配置
     QJsonObject getConfig() const;
 
+private slots:
+    // 声明两个专门用于监听主控框变化的槽函数
+    void onGeneralSleepChanged(); // 当一般入睡时间改变时触发
+    void onStayupBeginChanged();  // 当熬夜区间起始点改变时触发
+
 private:
-    QSpinBox *m_spGeneralSleep;  // 一般入睡时间（小时）
-    QSpinBox *m_spGeneralWake;   // 一般起床时间（小时）
-    QSpinBox *m_spStayupBegin;   // 熬夜判定起始（小时）
-    QSpinBox *m_spStayupEnd;     // 熬夜判定结束（小时）
+    // 辅助函数
+    void initTimeComboBox(QComboBox *box, int start=0, int end=24, bool _clean=true);
+    // 2. 将原本的 QSpinBox* 替换为 QComboBox*
+    QComboBox *m_spGeneralSleep;  // 一般入睡时间（浮点数）
+    QComboBox *m_spGeneralWake;   // 一般起床时间（浮点数）
+    QComboBox *m_spStayupBegin;   // 熬夜判定起始（浮点数）
+    QComboBox *m_spStayupEnd;     // 熬夜判定结束（浮点数）
 };
 
 #endif // SETTINGS_DIALOG_H
