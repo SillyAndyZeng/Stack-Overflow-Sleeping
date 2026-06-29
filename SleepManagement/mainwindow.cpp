@@ -515,6 +515,13 @@ void MainWindow::refreshCalendarColors()
         QJsonObject obj = doc.object();
 
         // 读取状态字段
+        // 如果起床或入睡存在一个是未记录状态，则不染色，直接退出函数
+        int s_h = obj["sleep_hour"].toInt();
+        int s_m = obj["sleep_min"].toInt();
+        int w_h = obj["wake_hour"].toInt();
+        int w_m = obj["wake_min"].toInt();
+        if (s_h == -1 || s_m == -1 || w_h == -1 || w_m == -1)
+            return;
         // no_night_sleep / oversleep 是你即将补充的布尔字段，
         // 若文件里尚未存在，toBool(false) 会安全返回 false，不影响现有记录
         bool noNightSleep = obj["no_night_sleep"].toBool(false);

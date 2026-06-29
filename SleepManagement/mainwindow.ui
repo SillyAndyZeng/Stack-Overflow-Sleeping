@@ -132,8 +132,8 @@
      </rect>
     </property>
     <property name="text">
-     <string>生成
-AI分析周报</string>
+     <string>生成周报
+（本地或AI）</string>
     </property>
    </widget>
    <widget class="QPushButton" name="btn_show_chart">
@@ -427,7 +427,7 @@ AI分析周报</string>
      <x>0</x>
      <y>0</y>
      <width>900</width>
-     <height>23</height>
+     <height>22</height>
     </rect>
    </property>
   </widget>
