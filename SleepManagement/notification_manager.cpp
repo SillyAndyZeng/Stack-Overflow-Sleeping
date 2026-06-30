@@ -1,4 +1,5 @@
 #include "notification_manager.h"
+#include "mainwindow.h"
 #include <QMainWindow>
 #include <QPainter>
 #include <QApplication>
@@ -99,7 +100,13 @@ void NotificationManager::setupTrayIcon()
     m_trayMenu->addSeparator();
 
     auto *quitAction = m_trayMenu->addAction("🚪 退出程序");
-    connect(quitAction, &QAction::triggered, qApp, &QApplication::quit);
+    // 💡 修改：先将主窗口的退出标记设为 true，再执行退出
+    connect(quitAction, &QAction::triggered, this, [this]() {
+        if (MainWindow *mw = qobject_cast<MainWindow*>(m_mainWindow)) {
+            mw->prepareToQuit();
+        }
+        QApplication::quit();
+    });
 
     m_trayIcon->setContextMenu(m_trayMenu);
 

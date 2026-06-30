@@ -47,6 +47,8 @@ public:
 
     // 【新增】启动时是否选择了"退出程序"
     bool shouldQuitOnStart() const { return m_shouldQuitOnStart; }
+    // 💡 【新增】：暴露出一个让外部通知程序即将彻底退出的接口
+    void prepareToQuit() { m_isQuitting = true; }
 
     // 这里是我们补上的两个按钮的“插槽声明(菜单)”
     // 当你的槽函数命名符合 "on_控件名_信号名()" 的规则时，Qt 会在运行时把对应的控件和这个函数自动绑定起来。

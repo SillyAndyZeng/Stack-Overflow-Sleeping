@@ -142,6 +142,7 @@ MainWindow::MainWindow(QWidget *parent)
         "QPushButton:hover { background-color: #4D96FF; color: white; }");
     connect(btnHelp, &QPushButton::clicked, this, [this]() {
         if (showWelcomeDialog(true))
+            m_isQuitting = true; //新增：主动设置退出标记
             QApplication::quit();
     });
 
@@ -226,6 +227,7 @@ MainWindow::MainWindow(QWidget *parent)
         raise();
         // 从托盘恢复时按 config 决定是否弹窗，若用户选退出则关闭程序
         if (showWelcomeDialog())
+            m_isQuitting = true; //新增：主动设置退出标记
             QApplication::quit();
     });
     m_notificationMgr->startMonitoring();
@@ -254,9 +256,9 @@ MainWindow::MainWindow(QWidget *parent)
     setupFade(ui->spinBox_sit);
     // ==========================================================
 
-    // 启动时强制显示欢迎说明书（首次启动必弹）
+    // 启动时强制显示欢迎说明书（不用特地传入true参数，否则之后每次都会弹说明书）
     // 如果用户选择了"退出程序"，设置标记供 main() 判断
-    m_shouldQuitOnStart = showWelcomeDialog(true);
+    m_shouldQuitOnStart = showWelcomeDialog();
 
     // 监听程序即将退出信号，确保 closeEvent 不误弹托盘通知（覆盖所有退出路径）
     connect(qApp, &QApplication::aboutToQuit, this, [this]() {
@@ -313,8 +315,12 @@ bool MainWindow::showWelcomeDialog(bool force)
     auto *bottomBar = new QHBoxLayout();
     auto *dontShowAgain = new QCheckBox("不再显示此欢迎页（可在设置区点击 ? 重新打开）", &dialog);
     dontShowAgain->setStyleSheet("font-size: 12px; color: #888;");
+
+    // 💡 【关键修复】：从配置里读取状态，反向设置给勾选框
+    // cfg["show_welcome"] 存的是“是否显示”。如果“显示”是 false，说明“不再显示”应该被打勾 (true)
+    dontShowAgain->setChecked(!cfg["show_welcome"].toBool(true));
+
     bottomBar->addWidget(dontShowAgain);
-    bottomBar->addStretch();
 
     auto *closeBtn = new QPushButton("开始使用", &dialog);
     closeBtn->setFixedSize(110, 32);
@@ -515,16 +521,28 @@ void MainWindow::refreshCalendarColors()
         QJsonObject obj = doc.object();
 
         // 读取状态字段
-        // 如果起床或入睡存在一个是未记录状态，则不染色，直接退出函数
-        int s_h = obj["sleep_hour"].toInt();
-        int s_m = obj["sleep_min"].toInt();
-        int w_h = obj["wake_hour"].toInt();
-        int w_m = obj["wake_min"].toInt();
-        if (s_h == -1 || s_m == -1 || w_h == -1 || w_m == -1)
-            return;
         // no_night_sleep / oversleep 是你即将补充的布尔字段，
         // 若文件里尚未存在，toBool(false) 会安全返回 false，不影响现有记录
+        // 如果起床或入睡存在一个是未记录状态，则不染色，直接退出函数
+        int s_h = obj["sleep_hour"].toInt(-1);
+        int s_m = obj["sleep_min"].toInt(-1);
+        int w_h = obj["wake_hour"].toInt(-1);
+        int w_m = obj["wake_min"].toInt(-1);
         bool noNightSleep = obj["no_night_sleep"].toBool(false);
+
+        // 判定 1：如果是你自己定义的临时占位符 -2，说明还没起床，不完整，跳过当前天，继续检查下一天
+        if (w_h == -2 || s_h == -2) {
+            continue;
+        }
+        // 判定 2：如果出现了 -1（代表数据缺失），但又不是通宵的情况
+        // （通宵的话，noNightSleep 为 true，且 s_h 和 w_h 会同时为 -1）
+        bool isMissingData = (s_h == -1 || s_m == -1 || w_h == -1 || w_m == -1);
+        bool isAllNight = noNightSleep || (s_h == -1 && w_h == -1);
+
+        if (isMissingData && !isAllNight) {
+            continue; // 不是通宵，但是数据没填满，跳过当前天
+        }
+
         // bool stayUp       = obj["stay_up_late"].toBool(false);
         bool oversleep    = obj["oversleep"].toBool(false);
         // int  sit          = obj["sit_min"].toInt(0);
@@ -714,6 +732,7 @@ void MainWindow::onCalendarDateSelected()
 
     // 刷新晚间睡眠时长显示！
     updateDurationDisplay();
+    // 刷新一下颜色？
 
     // ★ 日历切换数据：淡入刷新动效（透明度回弹脉冲）
     if (!m_displayEffects.isEmpty()) {
