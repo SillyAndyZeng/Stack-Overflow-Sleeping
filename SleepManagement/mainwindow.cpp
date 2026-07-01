@@ -141,9 +141,10 @@ MainWindow::MainWindow(QWidget *parent)
         "font-size: 16px; font-weight: bold; border: none; }"
         "QPushButton:hover { background-color: #4D96FF; color: white; }");
     connect(btnHelp, &QPushButton::clicked, this, [this]() {
-        if (showWelcomeDialog(true))
+        if (showWelcomeDialog(true)){
             m_isQuitting = true; //新增：主动设置退出标记
             QApplication::quit();
+        }
     });
 
     refreshCalendarColors();//新增:启动时加载历史颜色
@@ -226,9 +227,10 @@ MainWindow::MainWindow(QWidget *parent)
         activateWindow();
         raise();
         // 从托盘恢复时按 config 决定是否弹窗，若用户选退出则关闭程序
-        if (showWelcomeDialog())
+        if (showWelcomeDialog()){
             m_isQuitting = true; //新增：主动设置退出标记
             QApplication::quit();
+        }
     });
     m_notificationMgr->startMonitoring();
     // ==========================================================
