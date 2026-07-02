@@ -1,5 +1,6 @@
 #include "notification_manager.h"
 #include "mainwindow.h"
+#include "settings_dialog.h"
 #include <QMainWindow>
 #include <QPainter>
 #include <QApplication>
@@ -139,9 +140,17 @@ void NotificationManager::onTrayActivated(QSystemTrayIcon::ActivationReason reas
 // ==========================================
 void NotificationManager::checkLateNightCondition()
 {
+    // 拼接出配置文件的完整存放路径
+    QString cfgPath = dataDir() + "/config.json";
+    // 调用全局函数去读文件。如果文件在，currentConfig 就是老配置；如果不在，就是默认设置
+    QJsonObject currentCfg = loadUserConfig(cfgPath);
+
+    double stayupBe = currentCfg["stayup_begin"].toDouble(0.0);
+    double stayupEn = currentCfg["stayup_end"].toDouble(8.0);
+
     QTime now = QTime::currentTime();
-    // 只在 0:00 ~ 6:00 区间检测
-    if (now.hour() < 2 || now.hour() >= 6) {
+    // 只在设定的熬夜区间内区间检测，默认0-8点
+    if (now.hour() < stayupBe || now.hour() >= stayupEn) {
         m_lateNightNotified = false; // 重置标记
         return;
     }
@@ -149,7 +158,7 @@ void NotificationManager::checkLateNightCondition()
     // 如果已经弹过通知，不再重复
     if (m_lateNightNotified) return;
 
-    // 检查今天和昨天的作息日记录（凌晨2点入睡的数据存到昨天的作息日中）
+    // 检查今天和昨天的作息日记录（凌晨入睡的数据存到昨天的作息日中）
     QDate today = QDate::currentDate();
     QString filePathToday     = dataDir() + "/" + today.toString("yyyy-MM-dd") + ".json";
     QString filePathYesterday = dataDir() + "/" + today.addDays(-1).toString("yyyy-MM-dd") + ".json";
@@ -157,7 +166,7 @@ void NotificationManager::checkLateNightCondition()
         // 还没有任何记录，可能是熬夜了
         playSound("Basso"); // 警告音效
         showGenericNotification("🌙 夜深了",
-                                "已经凌晨 2:00 了，还没睡吗？放下手机，快休息吧！",
+                                "还没睡嘛？快休息吧！",
                                 QSystemTrayIcon::Warning);
         m_lateNightNotified = true;
     }
