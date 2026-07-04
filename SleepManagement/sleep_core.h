@@ -35,7 +35,7 @@
 #define catchUpSleep_rewardScore 1
 #define daysleep_rewardScore 1
 #define daysleep_judgethreshold 15
-#define daySpiltHour 6
+#define daySpiltHour 8
 // 变量修改为double类型，方便存储半点时间
 inline double stayupBegin = 0.0;
 inline double stayupEnd = 8.0;
@@ -46,7 +46,7 @@ using namespace std;
 //作息日计算函数
 inline QDate getSleepDay(const QDateTime& dateTime)
 {
-    if (dateTime.time().hour() < daySpiltHour) {
+    if (dateTime.time().hour() < int(stayupEnd)) {
         return dateTime.date().addDays(-1);
     }
     return dateTime.date();
@@ -54,7 +54,7 @@ inline QDate getSleepDay(const QDateTime& dateTime)
 
 class SleepData{
 protected:
-    int Sleep_hour; //睡下的小时，应当用24h计数法？默认为25，防止熬大夜的时候没有数据
+    int Sleep_hour; //睡下的小时，应当用24h计数法？默认为-1，防止熬大夜的时候没有数据
     int Sleep_min; //睡下的分钟
     int Wake_hour;
     int Wake_min;
