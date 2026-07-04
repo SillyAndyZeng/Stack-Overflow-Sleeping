@@ -136,7 +136,7 @@ void NotificationManager::onTrayActivated(QSystemTrayIcon::ActivationReason reas
 }
 
 // ==========================================
-// 凌晨条件检测：如果已过 2:00 AM 且当天无睡眠记录
+// 凌晨条件检测：如果已经进入设定的熬夜区间1h且当天无睡眠记录
 // ==========================================
 void NotificationManager::checkLateNightCondition()
 {
@@ -149,8 +149,8 @@ void NotificationManager::checkLateNightCondition()
     double stayupEn = currentCfg["stayup_end"].toDouble(8.0);
 
     QTime now = QTime::currentTime();
-    // 只在设定的熬夜区间内区间检测，默认0-8点
-    if (now.hour() < stayupBe || now.hour() >= stayupEn) {
+    // 只在设定的熬夜区间内区间检测，默认0-8点（实际判断是1-8点）
+    if (now.hour() < stayupBe + 1 || now.hour() >= stayupEn) {
         m_lateNightNotified = false; // 重置标记
         return;
     }

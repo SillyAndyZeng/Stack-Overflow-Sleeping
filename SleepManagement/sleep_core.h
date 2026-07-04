@@ -91,7 +91,7 @@ public:
         if (Wake_min   >= 0 && Wake_min   != -2) Wake_min   = std::clamp(Wake_min,   0, 59);
     }
 
-    int calculateNightSleep() {  //计算晚上睡眠时间：[一般睡觉时间提前2h, 一般起床时间延后2h]之间的时间段
+    int calculateNightSleep() {  //计算晚上睡眠时间
         if (noNightSleep) return 0; // 如果没有记录睡眠时间，则晚上睡眠时间为0
 
         isStayUpLate(); // 调用函数确保stayUp被计算
@@ -118,7 +118,7 @@ public:
     }
 
 
-    bool isStayUpLate() { //判断是否熬夜，如果在设定的0点和6点间入睡就算作熬夜
+    bool isStayUpLate() { //判断是否熬夜，如果在设定的熬夜区间内入睡就算作熬夜
         //这个是否熬夜和是否补觉的判断标准，初始让用户自己输入，后面可以根据记录的数据取平均作为建议
         double actualSleepTime = Sleep_hour * 60 + Sleep_min;
         double actualstayupBegin = 60 * stayupBegin;
