@@ -1255,6 +1255,10 @@ void MainWindow::on_btn_week_report_clicked()
             int exe = obj["exercise_min"].toInt();
             int sit = obj["sit_min"].toInt();
 
+            // 如果有一天数据（起床或入睡时间）不全，则跳过
+            if (s_h < 0 || s_m < 0 || w_h < 0 || w_m < 0)
+                continue;
+
             //构建SleepAnalyzer对象并传入Weektracker类对象localTracker
             SleepAnalyzer sa(s_h, s_m, w_h, w_m, nap, exe, sit);
             localTracker.addDay(sa);
