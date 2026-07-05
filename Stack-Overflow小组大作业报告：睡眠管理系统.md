@@ -44,6 +44,24 @@
 
 具体函数的定义可查看代码注释。
 
+## achievement_manager.h
+
+成就管理器。负责成就的判定和显示逻辑，具体函数在mainwindow.cpp内调用。
+
+#### 行为状态计算
+
+通过`consecutiveCheckIn()`、`consecutiveEarlySleep()`、`perfectSleepDays()`、`goodSleepDays()`四个函数计算四种成就，并在调用时满足只在完全等于指定日期的那一天才会触发。
+
+####  JSON 数据解析与时间回滚算法
+
+在私有辅助函数 `readRecord()` 中，利用 `QFile` 打开对应日期的文本，通过 `QJsonDocument::fromJson` 将其反序列化为 `QJsonObject`，提取出`"sleep_hour"`等数据。
+
+数据读取逻辑从今天（`QDate::currentDate()`）开始作为基准点，利用循环配合 `.addDays(-i)` 逐天向过去回溯。考虑到了调用函数的当天可能破坏判断逻辑，因此从昨天开始读取数据，只读取三个月内满足条件的最近的时间段。
+
+#### 非侵入式纯逻辑设计
+
+不继承任何 Qt 的 UI 类，内部也没有任何界面弹窗代码。它只接收数据目录路径 `m_dir`，通过暴露轻量级的公共接口（如 `consecutiveCheckIn()`、`currentBadge()`）向外（`mainwindow.cpp`）输出分析结果。
+
 ## settings_dialog.h & settings_dialog.cpp
 
 管理用户自定义设置的配置文件，涉及了磁盘文件的写入读出，并负责提供用户自定义参数的界面控件操作逻辑。
@@ -205,7 +223,60 @@ signals:
 
 董弈齐：程序调试，功能设计，成就编写，外观优化，睡眠日记
 
-曾梓航：编写时间逻辑，日历构建，项目录制，api构建，按钮与图表设计
+## floating_widget.h & floating_widget.cpp
+
+桌面悬浮球快捷打卡组件。独立于主窗口，始终停留在桌面最上层。基于 Qt 的常驻置顶与异形视窗机制。
+
+#### 鼠标事件驱动的拖曳
+
+通过计算全局鼠标坐标与窗口左上角的相对偏移量（`m_dragOffset`），实现了在全屏范围内丝滑的拖拽移动体验。
+
+#### 无边框置顶窗口
+
+在构造函数中，通过设置 Qt 的窗口标志（Window Flags），实现了悬浮球的窗口物理属性：
+
+```c++
+setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+setAttribute(Qt::WA_TranslucentBackground);  // 背景透明
+setAttribute(Qt::WA_ShowWithoutActivating);  // 启动时不抢占系统焦点
+```
+
+#### 基于QPainter的矢量美术
+
+悬浮球的视觉效果由 `paintEvent` 里的代码手工绘制。其内部利用了 `QLinearGradient`（双色环形/线性渐变阴影）渲染球体，并计算了像素点，绘制了数颗白色小星星和底部的“光泽反光层”。
+
+
+
+# 三、小组成员分工情况
+
+王晨瑜：主要负责界面美化；完成了以下工作：
+
+- 编写键盘检测功能
+- 编写睡眠图表功能
+- 参与api功能优化
+- 项目录制
+- 前端搭建与初步美化
+- 任务栏设计
+- 说明书初步撰写
+
+董弈齐：主要负责问题探索与程序调试；完成了以下工作：
+
+- 初始功能与ui设计
+- 编写成就功能
+- 外观和图标优化
+- 编写睡眠日记功能
+
+曾梓航：主要负责Qt逻辑设计、搭建与调试；完成了以下工作：
+
+- 时间逻辑设计与构建
+- 日历构建
+- api功能初步构建
+- 自定义功能设计与构建
+- 参与按钮与图表设计
+- 参与多项功能优化、细节优化、注释撰写
+- 参与项目录制
+- 实验报告撰写
+- 说明书后期撰写
 
 
 # 四、项目总结与反思

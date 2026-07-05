@@ -23,6 +23,8 @@
 // 前置声明
 class NotificationManager;
 class KeyMonitor;
+class FloatingWidget;
+class QTextEdit;
 
 /*
 这个头文件用来定义你的主窗口类里有哪些变量、有哪些函数。
@@ -102,6 +104,10 @@ private:
     bool m_shouldQuitOnStart = false;
     // 【新增】程序主动退出标记，防止 closeEvent 误弹托盘通知
     bool m_isQuitting = false;
+    // 【新增】桌面悬浮球（用于快捷打卡）
+    FloatingWidget *m_floatingWidget = nullptr;
+    // 睡眠日记是运行时动态创建的，不属于 Ui::MainWindow 生成类
+    QTextEdit *m_diaryEdit = nullptr;
     // 新增：告诉编译器有这几个私有辅助函数
     QString dataDir();
     void refreshCalendarColors();

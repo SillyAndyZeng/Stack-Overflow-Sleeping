@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 
 #include <QApplication>
+#include <QIcon>
 /*
 它的唯一任务就是把整个应用程序启动起来，并把主窗口显示在屏幕上。
 通常你不需要修改这个文件。
@@ -12,6 +13,12 @@ int main(int argc, char *argv[])
     ///实例化 Qt 应用程序对象。它负责管理整个图形界面的控制流、初始化各种底层资源，
     // 以及处理最核心的”事件循环”（比如分发鼠标点击、键盘输入等系统消息）
     QApplication a(argc, argv);
+
+    // 设置应用图标（从 Qt 资源加载，确保任务栏和标题栏显示月亮图标）
+    QIcon moonIcon(":/app_icon.png");
+    if (!moonIcon.isNull()) {
+        a.setWindowIcon(moonIcon);
+    }
 
     // 2. 实例化自己设计的主窗口对象（此时窗口还在内存中创建，默认是隐藏的，屏幕上看不见）
     MainWindow w;

@@ -8,6 +8,7 @@
 #include "notification_manager.h" // 系统托盘与通知
 #include "key_monitor.h"      // 键盘敲击监测
 #include "keyboard_chart.h"   // 键盘活跃度图表
+#include "floating_widget.h"  // 桌面悬浮球
 #include <QMessageBox>        // 引入 Qt 官方的弹窗对话框类，用于实现各种警告、信息提示弹窗
 #include <QTime>              // 抓取系统时间
 #include <QDate>              // 处理日历日期
@@ -25,6 +26,7 @@
 #include <QDialogButtonBox> // 美化的手动编辑时间窗口
 #include <QFormLayout> // 菜单相关
 #include <QTextBrowser>
+#include <QTextEdit>
 #include <QCheckBox>
 // 用于非阻塞（非sleep式）的停顿
 #include <QEventLoop>
@@ -40,6 +42,42 @@
 //用于窗口缩放
 #include <QResizeEvent>
 #include <QShowEvent>
+
+// ==========================================
+// 生成月亮主题的应用图标（纯代码绘制）
+// ==========================================
+static QIcon createMoonIcon()
+{
+    const int S = 64;
+    QPixmap pixmap(S, S);
+    pixmap.fill(Qt::transparent);
+    QPainter p(&pixmap);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    // 深蓝圆角方形背景
+    QPainterPath bg;
+    bg.addRoundedRect(0, 0, S, S, 14, 14);
+    p.fillPath(bg, QColor(0x2C, 0x3E, 0x6B));
+
+    // 金色月亮
+    p.setBrush(QColor(0xFF, 0xD7, 0x00));
+    p.setPen(Qt::NoPen);
+    p.drawEllipse(QPointF(S * 0.38, S * 0.38), S * 0.35, S * 0.35);
+
+    // 遮罩切出月牙
+    p.setBrush(QColor(0x2C, 0x3E, 0x6B));
+    p.drawEllipse(QPointF(S * 0.52, S * 0.24), S * 0.30, S * 0.30);
+
+    // 星星点缀
+    p.setBrush(Qt::white);
+    p.drawEllipse(QPointF(S * 0.70, S * 0.25), S * 0.06, S * 0.06);
+    p.drawEllipse(QPointF(S * 0.78, S * 0.50), S * 0.05, S * 0.05);
+    p.drawEllipse(QPointF(S * 0.60, S * 0.72), S * 0.05, S * 0.05);
+    p.drawEllipse(QPointF(S * 0.30, S * 0.72), S * 0.04, S * 0.04);
+
+    p.end();
+    return QIcon(pixmap);
+}
 
 /*
 当界面上的按钮被点击时，具体要做什么计算、弹出什么提示，全部写在这里。
@@ -58,7 +96,322 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow) // 动态分配内存，实例化负责管理 UI 控件的界面类
 {
     ui->setupUi(this); // 核心！这个函数把在图形化界面里拖拽的所有按钮、日历、输入框等，真正地绘制、布置到当前的这个MainWindow窗口上
+    this->resize(1000, 800); // 设置初始大小
 
+    // 【新增】设置月亮主题应用图标
+    QIcon moonIcon = createMoonIcon();
+    setWindowIcon(moonIcon);
+    QApplication::setWindowIcon(moonIcon);
+
+    // ==========================================================
+    // 【赛博朋克全局主题】
+    qApp->setStyleSheet(R"(
+        /* ===== 全局 ===== */
+        QToolTip {
+            background-color: #12122a;
+            color: #00f0ff;
+            border: 1px solid #00f0ff;
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        /* ===== 主窗口 ===== */
+        QMainWindow, QWidget#centralwidget {
+            background-color: #0a0a1a;
+        }
+
+        /* ===== 标签 ===== */
+        QLabel {
+            color: #00f0ff;
+            font-family: 'Microsoft YaHei', 'Consolas', monospace;
+        }
+
+        /* ===== 按钮 ===== */
+        QPushButton {
+            background-color: #12122a;
+            color: #00f0ff;
+            border: 1px solid #00f0ff;
+            border-radius: 6px;
+            padding: 4px 12px;
+            font-family: 'Microsoft YaHei', 'Consolas', monospace;
+            font-size: 12px;
+        }
+        QPushButton:hover {
+            background-color: #00f0ff;
+            color: #0a0a1a;
+            border: 1px solid #00f0ff;
+        }
+        QPushButton:pressed {
+            background-color: #00c0d0;
+            color: #0a0a1a;
+        }
+        QPushButton:disabled {
+            background-color: #1a1a2e;
+            color: #555577;
+            border: 1px solid #333355;
+        }
+
+        /* ===== 菜单 ===== */
+        QMenu {
+            background-color: #12122a;
+            color: #00f0ff;
+            border: 1px solid #00f0ff;
+            border-radius: 4px;
+            padding: 4px;
+        }
+        QMenu::item {
+            padding: 6px 24px;
+            border-radius: 4px;
+        }
+        QMenu::item:selected {
+            background-color: #00f0ff;
+            color: #0a0a1a;
+        }
+        QMenu::separator {
+            height: 1px;
+            background: #333366;
+            margin: 4px 8px;
+        }
+
+        /* ===== 单行文本输入 ===== */
+        QLineEdit {
+            background-color: #0a0a1a;
+            color: #00f0ff;
+            border: 1px solid #3333aa;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: 'Consolas', monospace;
+        }
+        QLineEdit:focus {
+            border: 1px solid #00f0ff;
+        }
+        QLineEdit:read-only {
+            color: #8888aa;
+            background-color: #0e0e24;
+            border: 1px solid #222244;
+        }
+
+        /* ===== 多行文本 ===== */
+        QTextEdit, QTextBrowser {
+            background-color: #0e0e24;
+            color: #e0e0ff;
+            border: 1px solid #3333aa;
+            border-radius: 4px;
+            padding: 4px 6px;
+            font-family: 'Microsoft YaHei', 'Consolas', monospace;
+            font-size: 12px;
+            selection-background-color: #00f0ff;
+            selection-color: #0a0a1a;
+        }
+        QTextEdit:focus, QTextBrowser:focus {
+            border: 1px solid #00f0ff;
+        }
+
+        /* ===== 数字微调框 ===== */
+        QSpinBox {
+            background-color: #0a0a1a;
+            color: #ffcc00;
+            border: 1px solid #3333aa;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: 'Consolas', monospace;
+        }
+        QSpinBox:focus {
+            border: 1px solid #ffcc00;
+        }
+        QSpinBox::up-button, QSpinBox::down-button {
+            background-color: #1a1a3e;
+            border: 1px solid #3333aa;
+            border-radius: 2px;
+            width: 16px;
+        }
+        QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+            background-color: #00f0ff;
+        }
+        QSpinBox::up-arrow {
+            image: none;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 5px solid #00f0ff;
+        }
+        QSpinBox::down-arrow {
+            image: none;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid #00f0ff;
+        }
+
+        /* ===== 下拉框 ===== */
+        QComboBox {
+            background-color: #0a0a1a;
+            color: #00f0ff;
+            border: 1px solid #3333aa;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-family: 'Microsoft YaHei', 'Consolas', monospace;
+        }
+        QComboBox:focus {
+            border: 1px solid #00f0ff;
+        }
+        QComboBox::drop-down {
+            background-color: #1a1a3e;
+            border: none;
+            border-left: 1px solid #3333aa;
+            width: 20px;
+        }
+        QComboBox::down-arrow {
+            image: none;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid #00f0ff;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #12122a;
+            color: #00f0ff;
+            border: 1px solid #00f0ff;
+            selection-background-color: #00f0ff;
+            selection-color: #0a0a1a;
+            outline: none;
+        }
+
+        /* ===== 日历控件 ===== */
+        QCalendarWidget {
+            background-color: #0e0e24;
+            color: #e0e0ff;
+            border: 1px solid #3333aa;
+            border-radius: 6px;
+        }
+        QCalendarWidget QToolButton {
+            background-color: #12122a;
+            color: #00f0ff;
+            border: 1px solid #3333aa;
+            border-radius: 4px;
+            padding: 4px 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        QCalendarWidget QToolButton:hover {
+            background-color: #00f0ff;
+            color: #0a0a1a;
+        }
+        QCalendarWidget QWidget#qt_calendar_navigationbar {
+            background-color: #12122a;
+        }
+        QCalendarWidget QAbstractItemView {
+            background-color: #0e0e24;
+            color: #8888cc;
+            selection-background-color: #00f0ff;
+            selection-color: #0a0a1a;
+            outline: none;
+            font-size: 12px;
+        }
+        QCalendarWidget QAbstractItemView:enabled {
+            color: #e0e0ff;
+        }
+        QCalendarWidget QAbstractItemView:disabled {
+            color: #333355;
+        }
+        /* 表头（星期行） */
+        QCalendarWidget QHeaderView::section {
+            background-color: #12122a;
+            color: #ff00ff;
+            border: none;
+            padding: 2px;
+            font-weight: bold;
+            font-size: 11px;
+        }
+
+        /* ===== 滚动条 ===== */
+        QScrollBar:vertical {
+            background: #0e0e24;
+            width: 8px;
+            border: none;
+        }
+        QScrollBar::handle:vertical {
+            background: #3333aa;
+            border-radius: 4px;
+            min-height: 20px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background: #00f0ff;
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            height: 0px;
+        }
+        QScrollBar:horizontal {
+            background: #0e0e24;
+            height: 8px;
+            border: none;
+        }
+        QScrollBar::handle:horizontal {
+            background: #3333aa;
+            border-radius: 4px;
+            min-width: 20px;
+        }
+        QScrollBar::handle:horizontal:hover {
+            background: #00f0ff;
+        }
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+            width: 0px;
+        }
+
+        /* ===== 对话框通用 ===== */
+        QDialog {
+            background-color: #0e0e24;
+            color: #e0e0ff;
+        }
+        QDialog QPushButton {
+            min-width: 70px;
+        }
+
+        /* ===== QMessageBox ===== */
+        QMessageBox {
+            background-color: #0e0e24;
+        }
+        QMessageBox QLabel {
+            color: #e0e0ff;
+            font-size: 13px;
+        }
+        QMessageBox QPushButton {
+            min-width: 80px;
+            padding: 6px 16px;
+        }
+
+        /* ===== QGroupBox ===== */
+        QGroupBox {
+            border: 1px solid #3333aa;
+            border-radius: 6px;
+            margin-top: 10px;
+            padding-top: 16px;
+            color: #00f0ff;
+            font-weight: bold;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 6px;
+            color: #ff00ff;
+        }
+
+        /* ===== 日期时间编辑 ===== */
+        QTimeEdit, QDateEdit, QDateTimeEdit {
+            background-color: #0a0a1a;
+            color: #00f0ff;
+            border: 1px solid #3333aa;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: 'Consolas', monospace;
+        }
+        QTimeEdit:focus, QDateEdit:focus, QDateTimeEdit:focus {
+            border: 1px solid #00f0ff;
+        }
+        QTimeEdit::drop-down, QDateEdit::drop-down, QDateTimeEdit::drop-down {
+            background-color: #1a1a3e;
+            border: none;
+            width: 20px;
+        }
+    )");
+    // ==========================================================
 
     // 限制日历最大可选日期为今天，未来的日期将被置灰且无法点击
     ui->calendarWidget->setMaximumDate(QDate::currentDate());
@@ -137,9 +490,9 @@ MainWindow::MainWindow(QWidget *parent)
     btnHelp->setFixedSize(28, 28);
     btnHelp->move(850, 12);
     btnHelp->setStyleSheet(
-        "QPushButton { background-color: #E0E0E0; color: #555; border-radius: 14px; "
-        "font-size: 16px; font-weight: bold; border: none; }"
-        "QPushButton:hover { background-color: #4D96FF; color: white; }");
+        "QPushButton { background-color: #12122a; color: #00f0ff; border-radius: 14px; "
+        "font-size: 16px; font-weight: bold; border: 1px solid #00f0ff; }"
+        "QPushButton:hover { background-color: #00f0ff; color: #0a0a1a; }");
     connect(btnHelp, &QPushButton::clicked, this, [this]() {
         if (showWelcomeDialog(true)){
             m_isQuitting = true; //新增：主动设置退出标记
@@ -203,10 +556,26 @@ MainWindow::MainWindow(QWidget *parent)
     btnExportPdf->setObjectName("btn_export_pdf");
     btnExportPdf->setGeometry(740, 635, 101, 28);
     btnExportPdf->setStyleSheet(
-        "QPushButton { background-color: #E8F0FE; color: #1A73E8; border: 1px solid #1A73E8; "
+        "QPushButton { background-color: #12122a; color: #ffcc00; border: 1px solid #ffcc00; "
         "border-radius: 6px; font-size: 12px; font-weight: bold; }"
-        "QPushButton:hover { background-color: #D2E3FC; }");
+        "QPushButton:hover { background-color: #ffcc00; color: #0a0a1a; }");
     connect(btnExportPdf, &QPushButton::clicked, this, &MainWindow::on_btn_export_pdf_clicked);
+    // ==========================================================
+
+    // ==========================================================
+    // 【新增：睡眠日记文本框】
+    auto *diaryLabel = new QLabel("📝 睡眠日记", ui->centralwidget);
+    diaryLabel->setObjectName("label_diary");
+    diaryLabel->setGeometry(365, 215, 100, 20);
+    diaryLabel->setStyleSheet("font-size: 12px; font-weight: bold;");
+
+    m_diaryEdit = new QTextEdit(ui->centralwidget);
+    m_diaryEdit->setObjectName("textEdit_diary");
+    m_diaryEdit->setGeometry(365, 235, 180, 90);
+    m_diaryEdit->setPlaceholderText("记录今晚的梦境和感受……");
+    m_diaryEdit->setTabChangesFocus(true);  // Tab 切换焦点而非输入制表符
+    // ==========================================================
+
     // ==========================================================
     // 【启动时加载用户配置】
     QString cfgPath = dataDir() + "/config.json";
@@ -242,6 +611,30 @@ MainWindow::MainWindow(QWidget *parent)
     // ==========================================================
 
     // ==========================================================
+    // 【新增：桌面悬浮球快捷打卡】
+    m_floatingWidget = new FloatingWidget();
+    m_floatingWidget->show();
+
+    // 悬浮球 → 入睡：记录后自动隐藏主窗口
+    connect(m_floatingWidget, &FloatingWidget::sleepRequested, this, [this]() {
+        on_btn_sleep_clicked();
+        if (isVisible()) {
+            hide();
+        }
+    });
+
+    // 悬浮球 → 起床：若主窗口已隐藏则先恢复
+    connect(m_floatingWidget, &FloatingWidget::wakeRequested, this, [this]() {
+        if (!isVisible()) {
+            showNormal();
+            activateWindow();
+            raise();
+        }
+        on_btn_wake_clicked();
+    });
+    // ==========================================================
+
+    // ==========================================================
     // 【设置显示区域透明度动效】（日历切换时淡入淡出）
     auto setupFade = [&](QWidget *w) {
         auto *effect = new QGraphicsOpacityEffect(this);
@@ -256,6 +649,8 @@ MainWindow::MainWindow(QWidget *parent)
     setupFade(ui->spinBox_nap);
     setupFade(ui->spinBox_exercise);
     setupFade(ui->spinBox_sit);
+    // 日记文本框也加入淡入动效
+    setupFade(m_diaryEdit);
     // ==========================================================
 
     // 启动时强制显示欢迎说明书（不用特地传入true参数，否则之后每次都会弹说明书）
@@ -277,6 +672,12 @@ MainWindow::MainWindow(QWidget *parent)
 }
 MainWindow::~MainWindow()
 {
+    // 清理桌面悬浮球（它没有父窗口，需要手动释放）
+    if (m_floatingWidget) {
+        m_floatingWidget->close();
+        delete m_floatingWidget;
+        m_floatingWidget = nullptr;
+    }
     delete ui; //析构函数的具体实现：回收在构造函数中 new 出来的 ui 指针占用的内存，防止内存泄漏
 }
 
@@ -578,16 +979,31 @@ void MainWindow::checkAndShowAchievements()
     QString badge = am.currentBadge();
     if (badge.isEmpty()) return;
 
-    int ci = am.checkInDays();
-    int es = am.earlySleepDays();
+    int ci = am.consecutiveCheckIn();
+    int es = am.consecutiveEarlySleep();
+    int ps = am.perfectSleepDays(); // 💡 新增获取完美睡眠天数
+    int gs = am.goodSleepDays();    // 💡 新增获取良好睡眠天数
 
-    // 只在刚好达到里程碑的那一天弹出，避免每次都弹
-    bool isMilestone = (ci == 7 || ci == 30 || es == 3 || es == 7);
+    // 💡 关键修改：将 ps 和 gs 的里程碑（3天、7天）加入拦截判定
+    // 只有在刚好达到这些天数的那天，才会触发全屏动画和弹窗
+    bool isMilestone = (ci == 7 || ci == 30 ||
+                        es == 3 || es == 7 ||
+                        ps == 3 || ps == 7 ||
+                        gs == 3 || gs == 7);
     if (!isMilestone) return;
 
     m_notificationMgr->playAchievement(); // 成就音效
-    QString msg = QString("恭喜解锁新成就：\n\n%1\n\n连续打卡 %2 天 · 连续早睡 %3 天\n\n继续保持！")
-                      .arg(badge).arg(ci).arg(es);
+
+    // 动态拼装更详细的数据报告展示给用户
+    QString msg = QString("恭喜解锁新成就：\n\n%1\n\n"
+                          "当前您的修仙状态：\n"
+                          "▶ 连续打卡：%2 天\n"
+                          "▶ 连续早睡：%3 天\n"
+                          "▶ 良好睡眠(>=2分)：%4 天\n"
+                          "▶ 完美睡眠(3分)：%5 天\n\n"
+                          "继续保持，道友仙福永享！")
+                      .arg(badge).arg(ci).arg(es).arg(gs).arg(ps);
+
     QMessageBox::information(this, "🎖 成就解锁！", msg);
     m_notificationMgr->showAchievementNotification(badge);
 }
@@ -693,6 +1109,8 @@ void MainWindow::onCalendarDateSelected()
         ui->spinBox_sit->setValue(0);
         ui->lineEdit_sleep_disp->setText("未记录");
         ui->lineEdit_wake_disp->setText("未记录");
+        // 清空睡眠日记
+        m_diaryEdit->clear();
         // 刷新晚间睡眠时长显示！
         updateDurationDisplay();
         return;
@@ -731,6 +1149,10 @@ void MainWindow::onCalendarDateSelected()
     ui->spinBox_nap->setValue(obj["day_sleep_min"].toInt()); //[cite: 43]
     ui->spinBox_exercise->setValue(obj["exercise_min"].toInt()); //[cite: 43]
     ui->spinBox_sit->setValue(obj["sit_min"].toInt()); //[cite: 43]
+
+    // 【新增】读取睡眠日记
+    QString diary = obj["diary_text"].toString();
+    m_diaryEdit->setPlainText(diary);
 
     // 刷新晚间睡眠时长显示！
     updateDurationDisplay();
@@ -841,6 +1263,12 @@ void MainWindow::on_btn_sleep_clicked()
     // 3. 弹出一个温馨的提示框 + 系统托盘通知
     QMessageBox::information(this, "晚安守护", "已记录入睡时间！\n系统已进入静默模式，请放下手机，好好休息哦~\n再次点按这个按钮会覆盖上次的数据，不用急");
     m_notificationMgr->showSleepNotification(currentTime.toString("HH:mm"));
+
+    // 【新增】入睡后自动隐藏主窗口（最小化到系统托盘）
+    // 用户可通过托盘图标或桌面悬浮球重新打开
+    if (isVisible()) {
+        hide();
+    }
 }
 
 // ==========================================
@@ -996,7 +1424,14 @@ void MainWindow::save_and_report(QDate recordDay, int s_hour, int s_min, int w_h
     QString fullPath = dataDir() + "/" + recordDay.toString("yyyy-MM-dd") + ".json";
     QFile outFile(fullPath);
     if (outFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        outFile.write(QString::fromStdString(jsonPayload).toUtf8());
+        // 解析 JSON，追加睡眠日记字段（不侵入 sleep_core.h 的纯算法层）
+        QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(jsonPayload).toUtf8());
+        if (doc.isObject()) {
+            QJsonObject obj = doc.object();
+            obj["diary_text"] = m_diaryEdit->toPlainText();
+            doc.setObject(obj);
+        }
+        outFile.write(doc.toJson(QJsonDocument::Indented));
         outFile.close();
     } else {
         QMessageBox::warning(this, "保存失败", "无法写入文件：\n" + fullPath);  // 以后再失败会有提示，不再静默
@@ -1054,9 +1489,9 @@ void MainWindow::on_btn_save_report_clicked()
         btnAllNight = msgBox.addButton("🔥 我通宵了，一分钟没睡", QMessageBox::ActionRole);
     }
     else{
-        msgBox.addButton("✅ 睡眠时间准确，直接结算", QMessageBox::AcceptRole);
+        msgBox.addButton("✅ 睡眠时间记录准确，进行结算", QMessageBox::AcceptRole);
     }
-    QPushButton *btnCancel = msgBox.addButton("❌ 不准，我去手动改改时间或者设定通宵", QMessageBox::RejectRole);
+    QPushButton *btnCancel = msgBox.addButton("❌ 不准，去手动改改", QMessageBox::RejectRole);
 
     msgBox.exec(); // 阻塞程序，等待用户在弹窗上做出点击选择
 

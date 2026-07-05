@@ -1,0 +1,18 @@
+本次修复：
+
+1. 修复 MainWindow 编译错误：
+   'class Ui::MainWindow' has no member named 'textEdit_diary'
+
+原因：textEdit_diary 是在 mainwindow.cpp 中动态 new 出来的控件，
+并不在 mainwindow.ui 中，因此不能通过 ui->textEdit_diary 访问。
+
+处理：
+- 在 MainWindow 中新增成员指针 m_diaryEdit
+- 创建控件时赋值给 m_diaryEdit
+- 清空、回填、保存日记时统一使用 m_diaryEdit
+- 显式包含 <QTextEdit>
+
+2. 同时补上 floating_widget.cpp 所需的：
+   #include <QMouseEvent>
+
+构建前请删除旧 build 目录，然后在 Qt Creator 中重新运行 CMake 并重新构建。

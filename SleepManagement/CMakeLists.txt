@@ -28,6 +28,8 @@ set(PROJECT_SOURCES
     key_monitor.cpp
     keyboard_chart.h
     keyboard_chart.cpp
+    floating_widget.h
+    floating_widget.cpp
     resources.qrc
 )
 
@@ -46,6 +48,7 @@ if(WIN32)
     # Windows 下用 WH_KEYBOARD_LL 低级键盘钩子统计全局按键次数
     list(APPEND PROJECT_SOURCES
         key_monitor_win.cpp
+        icon_resource.rc
     )
 endif()
 qt_add_executable(SleepManagement
