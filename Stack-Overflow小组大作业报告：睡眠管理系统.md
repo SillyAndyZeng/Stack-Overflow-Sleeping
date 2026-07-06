@@ -247,7 +247,7 @@ setAttribute(Qt::WA_ShowWithoutActivating);  // 启动时不抢占系统焦点
 
 王晨瑜：主要负责界面美化；完成了以下工作：
 
-- 编写键盘检测功能
+- 编写mac版本键盘检测功能
 - 编写睡眠图表功能
 - 参与api功能优化
 - 项目录制
@@ -257,10 +257,14 @@ setAttribute(Qt::WA_ShowWithoutActivating);  // 启动时不抢占系统焦点
 
 董弈齐：主要负责问题探索与程序调试；完成了以下工作：
 
-- 初始功能与ui设计
+- 软件功能设计、软件灵感
+- 在加入前端之前的基础C语言代码实现
 - 编写成就功能
+- 编写windows版本键盘检测功能
 - 外观和图标优化
+- windows版本和mac版本最终release
 - 编写睡眠日记功能
+
 
 曾梓航：主要负责Qt逻辑设计、搭建与调试；完成了以下工作：
 
@@ -276,3 +280,4 @@ setAttribute(Qt::WA_ShowWithoutActivating);  // 启动时不抢占系统焦点
 
 
 # 四、项目总结与反思
+
