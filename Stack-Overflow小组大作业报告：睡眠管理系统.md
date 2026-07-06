@@ -64,8 +64,6 @@
 
 通过`ostringstream`把所有数据拼成 JSON 格式的字符串，并进行转义。
 
-
-
 ## mainwindow.h  & mainwindow.cpp
 
 负责定义主窗口类的变量及函数，以及具体的实现。包含所有的信号-槽函数（private slots）以及与信号无关的辅助函数（private）。public部分只包含构造函数、析构函数与退出窗口需要实现的函数。
@@ -125,8 +123,6 @@
 
 用户在“入睡时间”下拉框中选择了某个时间（如 23:00），`onGeneralSleepChanged()` 会被触发，它会**动态重新计算并刷新**“起床时间”下拉框的可选范围（比如限制只能选择入睡后 1h 至 16h 之间的时间），并处理越界纠错逻辑。
 
-
-
 ## sleep_charts.h & sleep_charts.cpp
 
 负责绘制近七天睡眠数据的柱状图和折线图，使用了高级自定义绘制（Custom Paint）技术，根据睡眠时长给予不同的颜色，提供睡眠时长趋势的可视化分析。
@@ -157,8 +153,6 @@ double totalHours() const { return (nightSleepMin + daySleepMin) / 60.0; }
 double nightHours() const { return nightSleepMin / 60.0; }
 ```
 
-
-
 ## key_monitor.h & key_monitor.cpp
 
 键盘敲击注意力检测功能的上层界面。不关心当前程序运行在 Windows 还是 macOS，只负责通用的业务逻辑（如每 200ms 轮询一次计数、按分钟切分数据槽 `m_slots`、发送 Qt 信号等）。
@@ -186,15 +180,11 @@ static uint64_t getSystemKeystrokeCount() {
 - 编译期决定：当在 Windows 下编译程序时，CMake/Qt 编译器只会把 `key_monitor_win.cpp` 编译进去，并通过 `extern "C"` 让 `key_monitor.cpp` 成功调用到 `windows_getSystemKeystrokeCount()`；在 Mac 下编译时则同理调用 `macos_getSystemKeystrokeCount()`。
 - 输入源统一：无论底层如何实现，最终都向跨平台的 `KeyMonitor` 提供一个**自启动以来（或安装钩子以来）的全局按键累计总数**（`uint64_t`类型）。
 
-
-
 ##  key_monitor_win.cpp & key_monitor_mac.mm
 
 键盘敲击注意力检测功能的底层操作系统适配层。调用了各自操作系统独有的系统级 API（Windows 的全局钩子 Hook，macOS 的 CoreGraphics 事件计数器），获取系统全局的按键总数。
 
 key_monitor.h & key_monitor.cpp 这两个文件和 key_monitor_win.cpp & key_monitor_mac.mm这两个文件，前者构成了软件的逻辑，定义了数据处理的模型；后者在底层实现上针对不同操作系统实现了适配数据处理模型，是典型的的‘抽象与实现分离’的架构设计。
-
-
 
 ## notification_manager.h & notification_manager.cpp
 
