@@ -325,7 +325,6 @@ setAttribute(Qt::WA_ShowWithoutActivating);  // 启动时不抢占系统焦点
 
 
 # 四、项目总结与反思
-# 四、项目总结与反思
 
 ## 4.1 项目完成情况总结
 
