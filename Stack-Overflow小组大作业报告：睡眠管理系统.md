@@ -272,6 +272,7 @@ setAttribute(Qt::WA_ShowWithoutActivating);  // 启动时不抢占系统焦点
 ## manual.html
 `manual.html` 是用户说明书，内容详见说明书本身。说明书通过 `resources.qrc` 打包进程序，启动时自动弹出，也可以通过主界面右上角的“？”按钮再次打开。
 
+
 # 三、小组成员分工情况
 
 王晨瑜：主要负责界面美化；完成了以下工作：
